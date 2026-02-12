@@ -120,7 +120,7 @@ async function loadConsultantsList() {
         const snapshot = await getDocs(q);
         
         const ignoredEmails = [
-            "ti@emaximovel.com.br", "locacao18@emaximovel.com.br", 
+            "gl.infostech@gmail.com", "locacao18@emaximovel.com.br", 
             "locacao06@emaximovel.com.br", "admin@admin.com", "katia@admin.com"
         ];
     

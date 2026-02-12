@@ -8,13 +8,13 @@ import { getAuth } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth
 
 // --- CONFIGURAÇÃO ---
 const firebaseConfig = {
-  apiKey: "AIzaSyCktArIqaWQr3HrXTeJ-tCa1BJGlIlcAVY",
-  authDomain: "agenda-imobiliaria-fec0f.firebaseapp.com",
-  projectId: "agenda-imobiliaria-fec0f",
-  storageBucket: "agenda-imobiliaria-fec0f.firebasestorage.app",
-  messagingSenderId: "288904850912",
-  appId: "1:288904850912:web:7d3042336f78d7ecfb4f85",
-  measurementId: "G-V89NSRTS34"
+  apiKey: "AIzaSyDlvSLcBHk_CD4Z8IRJMkyOg-TbCgXvwxE",
+  authDomain: "agenda-nunes.firebaseapp.com",
+  projectId: "agenda-nunes",
+  storageBucket: "agenda-nunes.firebasestorage.app",
+  messagingSenderId: "764774577796",
+  appId: "1:764774577796:web:04cadabd23375c8b0c74d1",
+  measurementId: "G-W6VS4CYYJP"
 };
 
 const app = initializeApp(firebaseConfig);
