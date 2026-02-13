@@ -334,3 +334,26 @@ textarea.form-control { resize: vertical; min-height: 80px; font-family: inherit
     .btn-generate { margin-top: 10px; }
     .report-pagination { flex-direction: column; gap: 10px; text-align: center; }
 }
+/* GRID DO FORMULÁRIO DE VISITA */
+.visit-datetime-grid {
+    display: grid;
+    /* Colunas: Status (flex) | Data (flex) | Inicio (fixo) | Fim (fixo) */
+    grid-template-columns: 1.5fr 1.4fr 0.8fr 0.8fr; 
+    gap: 10px;
+    margin-top: 15px;
+    margin-bottom: 10px;
+    align-items: end; /* Alinha tudo pela base para ficar bonito */
+    border-top: 1px solid #e5e7eb;
+    padding-top: 15px;
+}
+
+.visit-datetime-grid label {
+    margin-bottom: 5px; /* Espacinho entre label e input */
+}
+
+/* Responsividade para celular: quebra em 2 linhas (2 em cima, 2 embaixo) */
+@media (max-width: 600px) {
+    .visit-datetime-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}

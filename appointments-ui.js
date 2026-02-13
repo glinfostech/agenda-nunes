@@ -49,6 +49,10 @@ export function getFormDataFromUI() {
     const ownerSelect = document.getElementById("form-owner-select");
     let adminSelectedOwner = ownerSelect ? ownerSelect.value : null;
 
+    // Elementos de Status (Novos)
+    const statusEl = document.getElementById("form-status");
+    const statusObsEl = document.getElementById("form-status-obs");
+
     return {
         id,
         brokerId: document.getElementById("form-broker").value,
@@ -56,6 +60,12 @@ export function getFormDataFromUI() {
         startTime: document.getElementById("form-start").value,
         endTime: document.getElementById("form-end").value,
         isEvent: chkIsEvent.checked,
+        
+        // --- NOVOS CAMPOS DE STATUS ---
+        status: statusEl ? statusEl.value : "agendada",
+        statusObservation: statusObsEl ? statusObsEl.value : "",
+        // ------------------------------
+
         eventComment: document.getElementById("form-event-comment").value,
         reference: document.getElementById("form-reference").value,
         propertyAddress: document.getElementById("form-address").value,
@@ -98,11 +108,16 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     const inpStart = document.getElementById("form-start");
     const inpEnd = document.getElementById("form-end");
 
+    // --- ELEMENTOS DE STATUS ---
+    const inpStatus = document.getElementById("form-status");
+    const divStatusObs = document.getElementById("div-status-obs");
+    const lblStatusObs = document.getElementById("lbl-status-obs");
+    const inpStatusObs = document.getElementById("form-status-obs");
+
     if (inpRef) {
         inpRef.oninput = function() {
             this.value = this.value.replace(/[^0-9]/g, "");
         };
-        // Garante que o teclado numérico abra no celular
         inpRef.setAttribute("inputmode", "numeric");
     }
   
@@ -110,7 +125,7 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     modal.classList.add("open");
     document.getElementById("appt-id").value = appt ? appt.id : "";
 
-    // --- SETUP LAYOUT (Wrapper da 1ª linha) ---
+    // --- SETUP LAYOUT ---
     setupCustomLayout(inpBroker, divEventType);
 
     // --- PREENCHIMENTO CAMPOS ---
@@ -120,15 +135,44 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     whatsContainer.innerHTML = ""; 
     lockWarning.style.display = "none";
 
-    // --- PERMISSÕES ---
+    // --- LÓGICA DE STATUS (PREENCHIMENTO E EVENTOS) ---
+    if (inpStatus) {
+        const currentStatus = (appt && appt.status) ? appt.status : "agendada";
+        inpStatus.value = currentStatus;
+        if(inpStatusObs) inpStatusObs.value = (appt && appt.statusObservation) ? appt.statusObservation : "";
+
+        const updateStatusUI = () => {
+            const val = inpStatus.value;
+            if (val === "agendada") {
+                if(divStatusObs) divStatusObs.classList.add("hidden");
+            } else {
+                if(divStatusObs) divStatusObs.classList.remove("hidden");
+                if (val === "cancelada") {
+                    if(lblStatusObs) lblStatusObs.innerText = "Motivo do Cancelamento / Problema";
+                    if(inpStatusObs) inpStatusObs.placeholder = "Descreva o motivo do cancelamento...";
+                } else {
+                    if(lblStatusObs) lblStatusObs.innerText = "Interesse do Cliente / Feedback";
+                    if(inpStatusObs) inpStatusObs.placeholder = "O cliente gostou? Fez proposta? (Opcional)";
+                }
+            }
+        };
+
+        inpStatus.onchange = updateStatusUI;
+        updateStatusUI(); 
+    }
+
+    // --- PERMISSÕES (LÓGICA AJUSTADA) ---
     const amICreator = appt ? appt.createdBy === state.userProfile.email : true; 
     const isAdmin = state.userProfile.role === "admin";
     const isSuperAdmin = (state.userProfile.email === "gl.infostech@gmail.com");
     const amIShared = appt && appt.sharedWith && appt.sharedWith.includes(state.userProfile.email);
     
+    // CoreEditor: Admin ou Criador
     const isCoreEditor = (isAdmin || amICreator);
+    // CanSaveAny: Pode salvar se for Editor, Criador ou Compartilhado
     const canSaveAny = (isCoreEditor || amIShared);
     
+    // Lógica de Trava Temporal
     let isLocked = false;
     if (appt && isTimeLocked(appt.date, appt.startTime) && !isSuperAdmin) {
         isLocked = true;
@@ -136,17 +180,33 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
         lockWarning.innerText = getLockMessage(appt.date);
     }
 
-    const canInteract = canSaveAny && !isLocked;
+    // --- REGRAS ESPECÍFICAS PEDIDAS NO PROMPT ---
+    
+    // 1. Quem pode editar o STATUS?
+    // Regra: Criador/Admin pode SEMPRE. Compartilhados só se NÃO estiver bloqueado.
+    const canEditStatus = (amICreator || isAdmin) || (canSaveAny && !isLocked);
+
+    // 2. Quem pode interagir com o GERAL (Campos principais)?
+    // Regra original: Ninguém se estiver bloqueado.
+    const canInteractGeneral = canSaveAny && !isLocked;
+
+    // 3. O botão SALVAR deve aparecer?
+    // Aparece se puder interagir no geral OU se puder editar Status (mesmo bloqueado)
+    const showSaveButton = canInteractGeneral || (isLocked && (amICreator || isAdmin));
+    
+    // 4. Pode deletar?
     const canDelete = isCoreEditor && !isLocked;
+
     const isEvent = appt ? appt.isEvent : false;
     divEventType.classList.toggle("hidden", !canSaveAny);
 
     // --- UPDATE FORM STATE ---
-    // Função interna para controlar habilitação/desabilitação
     const updateFormState = () => {
         const isEvt = chkIsEvent.checked;
         const clContainer = document.getElementById("clients-container");
         const clientHeader = document.querySelector(".clients-header-row");
+        
+        // Bloqueio Geral (Data, Hora, Endereço...)
         const disableCore = !isCoreEditor || isLocked;
 
         inpBroker.disabled = disableCore;
@@ -158,15 +218,28 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
         inpEventComment.disabled = disableCore;
         chkIsEvent.disabled = disableCore;
 
+        // --- MUDANÇA 1: Status segue permissão específica ---
+        if(inpStatus) inpStatus.disabled = !canEditStatus;
+        if(inpStatusObs) inpStatusObs.disabled = !canEditStatus;
+
         const ownerSelect = document.getElementById("form-owner-select");
         if(ownerSelect) ownerSelect.disabled = disableCore;
 
-        // Botões de troca
+        // --- MUDANÇA 2: Botão de Trocar Corretor ---
+        // Regra: Bloqueado para todos, exceto Criador (sempre) ou se estiver Aberta (Core Editors)
         if(btnChangeBroker) {
-            const show = (!disableCore && appt && inpBroker.classList.contains("hidden"));
+            // Se sou Criador/Admin, posso trocar SE (não bloqueado OU sou criador)
+            // Simplificando: Criador pode sempre. Outros Admins só se não bloqueado? 
+            // O prompt diz: "bloqueado para todos a nao ser para quem criou ou enquanto a visita estiver aberta"
+            const canChangeBroker = isCoreEditor && (!isLocked || amICreator);
+            
+            // Só mostra o botão se tiver permissão E o campo de input estiver escondido (modo visualização)
+            const show = (canChangeBroker && appt && inpBroker.classList.contains("hidden"));
+            
             btnChangeBroker.style.display = show ? "inline-flex" : "none";
             show ? btnChangeBroker.classList.remove("hidden") : btnChangeBroker.classList.add("hidden");
         }
+
         if(btnChangeDate) {
             const show = (!disableCore && appt && inpDate.classList.contains("hidden"));
             btnChangeDate.style.display = show ? "inline-flex" : "none";
@@ -186,7 +259,8 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
             inpEventComment.parentElement.classList.add("hidden");
             if(clContainer) clContainer.classList.remove("hidden");
             if(clientHeader) clientHeader.classList.remove("hidden");
-            if(btnAddClient) btnAddClient.classList.toggle("hidden", !canInteract);
+            // Botão Adicionar Cliente: segue regra geral de interação (bloqueado se Locked)
+            if(btnAddClient) btnAddClient.classList.toggle("hidden", !canInteractGeneral);
             enforceClientRowPermissions(isLocked, isCoreEditor, chkIsEvent.checked);
         }
     };
@@ -206,7 +280,8 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     }
 
     // --- BOTÕES DE AÇÃO VISUAL ---
-    btnSave.classList.toggle("hidden", !canInteract);
+    // MUDANÇA 3: Botão Salvar visível se puder salvar algo (mesmo que só o status)
+    btnSave.classList.toggle("hidden", !showSaveButton);
     btnDel.classList.toggle("hidden", !canDelete);
     
     // Configura o botão de adicionar cliente
@@ -233,12 +308,13 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
         } else {
             inpRef.value = appt.reference || "";
             inpAddress.value = appt.propertyAddress;
-            renderClientsInput(getClientList(appt), canInteract, amICreator, isAdmin, appt);
+            // Clientes só editáveis se não bloqueado geral
+            renderClientsInput(getClientList(appt), canInteractGeneral, amICreator, isAdmin, appt);
         }
         inpStart.value = appt.startTime;
         inpEnd.value = appt.endTime;
 
-        if ((canInteract) && !isEvent) {
+        if ((canInteractGeneral) && !isEvent) {
             const clientList = getClientList(appt);
             let targetClient = null;
             if (isCoreEditor) {
@@ -259,7 +335,7 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     // --- COMPARTILHAMENTO ---
     setupShareSection(shareCheckboxes, shareSection, isCoreEditor, isLocked, isEvent, appt);
 
-    // --- BOTÃO DELETAR (Conecta com a Action via Callback) ---
+    // --- BOTÃO DELETAR ---
     btnDel.onclick = () => {
         if(onDeleteCallback) onDeleteCallback(appt);
     };
@@ -352,6 +428,8 @@ function enforceClientRowPermissions(isLocked, isCoreEditor, isEvtMode) {
         const addedByInput = row.querySelector(".client-added-by");
         const rowOwner = addedByInput ? addedByInput.value : "";
         const isMine = (rowOwner === state.userProfile.email);
+        
+        // Clientes: Se está bloqueado, ninguém edita dados do cliente.
         let canEditThisRow = (!isLocked) && (isCoreEditor || isMine);
         
         const nameInp = row.querySelector(".client-name-input");
@@ -411,10 +489,14 @@ function setupNewAppointmentUI(defaults, inpBroker, brokerStatic, btnChangeBroke
     
     document.getElementById("audit-log-container").classList.add("hidden");
     
-    // Reseta histórico visual
     const historyContainer = document.getElementById("history-logs-container");
     if (historyContainer) historyContainer.style.display = "none";
 
+    const inpStatus = document.getElementById("form-status");
+    const inpStatusObs = document.getElementById("form-status-obs");
+    if(inpStatus) inpStatus.value = "agendada";
+    if(inpStatusObs) inpStatusObs.value = "";
+    
     updateFormState();
 }
 

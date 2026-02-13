@@ -3,6 +3,7 @@ import { state, TIME_START } from "./config.js";
 
 // --- FUNÇÕES AUXILIARES ---
 export function toMinutes(t) { 
+    if (!t || typeof t !== 'string') return 0; // Proteção contra o erro t.split
     const [h, m] = t.split(":").map(Number); 
     return h * 60 + m; 
 }

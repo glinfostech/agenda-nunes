@@ -67,7 +67,7 @@ function injectReportModal() {
                         <label>Consultora</label>
                         <select id="rep-consultant" class="form-control">
                             <option value="">Todas</option>
-                            </select>
+                        </select>
                     </div>
 
                     <div class="filter-group button-group">
@@ -88,21 +88,15 @@ function injectReportModal() {
 
     document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-    // --- NOVO: Lógica para Fechar com ESC e Clique Fora ---
+    // --- Lógica para Fechar com ESC e Clique Fora ---
     const modal = document.getElementById('report-modal');
     
-    // 1. Clique fora (no overlay escuro)
     modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            closeReportModal();
-        }
+        if (e.target === modal) closeReportModal();
     });
 
-    // 2. Tecla ESC
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('open')) {
-            closeReportModal();
-        }
+        if (e.key === 'Escape' && modal.classList.contains('open')) closeReportModal();
     });
 }
 
@@ -180,13 +174,15 @@ async function generateReport() {
                 consultant: data.createdByName || "Desconhecido",
                 reference: data.reference || "--",
                 address: data.propertyAddress || "",
-                status: data.status || "Agendado",
-                sharedWith: data.sharedWith || []
+                status: data.status || "agendada", // Padrão 'agendada' se não existir
+                sharedWith: data.sharedWith || [],
+                isEvent: data.isEvent
             };
         });
 
         // Filtra em Memória
         currentReportData = allDocs.filter(item => {
+            if (item.isEvent) return false; // Ignora eventos/avisos no relatório de visitas
             if (!item.date) return false; 
             if (item.date < startDate || item.date > endDate) return false;
 
@@ -227,20 +223,22 @@ function renderReportTable() {
     const container = document.getElementById('report-results-area');
     const totalVisits = currentReportData.length;
     
-    // --- CÁLCULOS DE STATUS ---
-    const now = new Date();
+    // --- CÁLCULOS DE STATUS (NOVA LÓGICA) ---
+    // Agora baseia-se puramente no campo 'status', não na data/hora
     let realizedCount = 0;
+    let canceledCount = 0;
+    let scheduledCount = 0;
     
     currentReportData.forEach(item => {
-        if (item.date && item.time) {
-            const apptDate = new Date(`${item.date}T${item.time}`);
-            if (apptDate < now) {
-                realizedCount++;
-            }
+        const st = (item.status || "agendada").toLowerCase();
+        if (st === "realizada") {
+            realizedCount++;
+        } else if (st === "cancelada") {
+            canceledCount++;
+        } else {
+            scheduledCount++;
         }
     });
-
-    const notRealizedCount = totalVisits - realizedCount;
 
     const totalPages = Math.ceil(totalVisits / ITEMS_PER_PAGE);
     const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -249,7 +247,7 @@ function renderReportTable() {
 
     // --- HTML DOS CARDS ---
     let html = `
-    <div class="stats-summary">
+    <div class="stats-summary" style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
         <div class="stat-card">
             <span class="stat-value">${totalVisits}</span>
             <span class="stat-label">Total</span>
@@ -259,8 +257,12 @@ function renderReportTable() {
             <span class="stat-label">Realizadas</span>
         </div>
         <div class="stat-card">
-            <span class="stat-value" style="color:#64748b;">${notRealizedCount}</span>
-            <span class="stat-label">Não Realizadas</span>
+            <span class="stat-value" style="color:#ef4444;">${canceledCount}</span>
+            <span class="stat-label">Canceladas</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value" style="color:#3b82f6;">${scheduledCount}</span>
+            <span class="stat-label">Agendadas</span>
         </div>
     </div>
 
@@ -272,7 +274,7 @@ function renderReportTable() {
                     <th style="width: 160px;">Equipe</th>
                     <th>Imóvel / Endereço</th>
                     <th style="width: 180px;">Cliente</th>
-                    <th style="width: 70px; text-align:center;">Status</th>
+                    <th style="width: 90px; text-align:center;">Status</th>
                 </tr>
             </thead>
             <tbody>
@@ -285,14 +287,16 @@ function renderReportTable() {
             const brName = BROKERS.find(b => b.id === row.brokerId)?.name || "N/A";
             const dateFmt = row.date.split('-').reverse().join('/');
             
-            // Lógica do Ícone de Status
-            let statusIcon = '<i class="far fa-clock" style="color:#cbd5e1; font-size:1.1rem;" title="Pendente / Futuro"></i>'; 
-            
-            if (row.date && row.time) {
-                 const apptDate = new Date(`${row.date}T${row.time}`);
-                 if (apptDate < now) {
-                     statusIcon = '<i class="fas fa-check-circle" style="color:#22c55e; font-size:1.1rem;" title="Realizado"></i>'; 
-                 }
+            // Lógica do Ícone de Status Baseado no Campo
+            let statusIcon = '';
+            const st = (row.status || "agendada").toLowerCase();
+
+            if (st === 'realizada') {
+                statusIcon = '<span style="color:#22c55e; font-weight:600;"><i class="fas fa-check-circle"></i> Realizada</span>';
+            } else if (st === 'cancelada') {
+                statusIcon = '<span style="color:#ef4444; font-weight:600;"><i class="fas fa-times-circle"></i> Cancelada</span>';
+            } else {
+                statusIcon = '<span style="color:#3b82f6; font-weight:600;"><i class="far fa-clock"></i> Agendada</span>';
             }
 
             html += `
@@ -324,7 +328,7 @@ function renderReportTable() {
                     <div style="font-weight:600; color:#334155;">${row.client}</div>
                 </td>
 
-                <td style="text-align:center;">
+                <td style="text-align:center; font-size:0.85rem;">
                     ${statusIcon}
                 </td>
             </tr>

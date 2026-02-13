@@ -7,6 +7,12 @@ import {
     getDoc, doc, query, collection, where, getDocs 
 } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
+// --- LISTA DE SUPER ADMINS (TI) ---
+// Estes e-mails terão acesso TOTAL (role = admin) automaticamente
+const SUPER_ADMINS = [
+    "gs.infostech@gmail.com"
+];
+
 /**
  * Inicializa o sistema de autenticação.
  * @param {Function} initAppCallback - Função a ser chamada quando o login for confirmado (initApp do app.js).
@@ -29,9 +35,14 @@ function handleLoginSuccess(user, initAppCallback) {
     if (errEl) errEl.innerText = "";
 
     const updateInterface = (profile) => {
+        // --- ADICIONE ESTE BLOCO AQUI ---
+        if (profile.email === "gl.infostech@gmail.com") {
+            profile.role = "admin";
+        }
+        // --------------------------------
+        
         state.userProfile = profile;
         updateUserUI(profile);
-
         if (["admin", "consultant"].includes(profile.role)) {
             loadConsultantsList();
         }
@@ -43,8 +54,6 @@ function handleLoginSuccess(user, initAppCallback) {
         // Callback para iniciar o restante do app (listeners, realtime, etc)
         if (!state.appInitialized && initAppCallback) {
             initAppCallback();
-            // A flag state.appInitialized será setada dentro do initApp ou aqui,
-            // mas geralmente é melhor deixar o app.js controlar isso.
         }
     };
 
@@ -55,6 +64,8 @@ function handleLoginSuccess(user, initAppCallback) {
 
     if (cachedProfileJSON) {
         try {
+            // Ao carregar do cache, passamos pelo updateInterface
+            // que vai aplicar a regra de SUPER_ADMIN novamente
             updateInterface(JSON.parse(cachedProfileJSON));
             loadedFromCache = true;
             console.log("Carregado do cache via LocalStorage");
@@ -64,14 +75,27 @@ function handleLoginSuccess(user, initAppCallback) {
     getDoc(doc(db, "users", user.email)).then((snap) => {
         if (snap.exists()) {
             const freshProfile = { email: user.email, ...snap.data() };
+            
+            // Salva no cache
             localStorage.setItem(cacheKey, JSON.stringify(freshProfile));
             
+            // Atualiza a interface se não tiver carregado do cache ou se mudou algo
             if (!loadedFromCache || JSON.stringify(freshProfile) !== cachedProfileJSON) {
                 updateInterface(freshProfile);
             }
-        } else if (!loadedFromCache) {
-            alert("Usuário sem perfil cadastrado.");
-            signOut(auth);
+        } else {
+            // Se o usuário não existe no banco, mas é Super Admin, criamos um perfil temporário
+            if (SUPER_ADMINS.includes(user.email)) {
+                const tempAdmin = { 
+                    email: user.email, 
+                    name: "TI Admin", 
+                    role: "admin" 
+                };
+                updateInterface(tempAdmin);
+            } else if (!loadedFromCache) {
+                alert("Usuário sem perfil cadastrado.");
+                signOut(auth);
+            }
         }
     }).catch(console.error);
 }
@@ -119,6 +143,8 @@ async function loadConsultantsList() {
         const q = query(collection(db, "users"), where("role", "in", ["consultant", "admin"]));
         const snapshot = await getDocs(q);
         
+        // Atualizei aqui para esconder o seu email da lista de seleção, 
+        // mantendo os outros que você já tinha.
         const ignoredEmails = [
             "gl.infostech@gmail.com"
         ];
