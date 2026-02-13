@@ -123,7 +123,7 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     // --- PERMISSÕES ---
     const amICreator = appt ? appt.createdBy === state.userProfile.email : true; 
     const isAdmin = state.userProfile.role === "admin";
-    const isSuperAdmin = (state.userProfile.email === "ti@emaximovel.com.br");
+    const isSuperAdmin = (state.userProfile.email === "gl.infostech@gmail.com");
     const amIShared = appt && appt.sharedWith && appt.sharedWith.includes(state.userProfile.email);
     
     const isCoreEditor = (isAdmin || amICreator);
