@@ -77,6 +77,7 @@ export async function saveAppointmentAction(formData) {
         eventComment: formData.eventComment || "",
         reference: formData.reference || "",
         propertyAddress: formData.propertyAddress || "",
+        properties: formData.properties || [],
         clients: formData.clients || [], // Array de objetos { name, phone, addedBy... }
         sharedWith: formData.sharedWith || [],
         
@@ -226,6 +227,7 @@ function detectChanges(oldAppt, newData) {
         startTime: "Início",
         endTime: "Fim",
         propertyAddress: "Endereço",
+        properties: "Imóveis",
         status: "Status",
         statusObservation: "Obs. Status",
         createdBy: "Responsável"

@@ -7,6 +7,7 @@ export function setupUIInteractions() {
     setupSearch();
     setupEventCheckboxLogic();
     setupClientAddButton();
+    setupPropertyAddButton();
     setupGlobalViewFunctions();
 }
 
@@ -43,8 +44,10 @@ function setupEventCheckboxLogic() {
             visitContainer.classList.add("hidden");
             shareSection.classList.add("hidden");
             eventContainer.classList.remove("hidden");
-            document.getElementById("form-address").required = false;
-            document.getElementById("form-reference").required = false;
+            document.querySelectorAll(".property-address-input, .property-reference-input").forEach(inp => {
+                inp.required = false;
+                inp.disabled = true;
+            });
             document.querySelectorAll(".client-name-input").forEach(inp => {
                 inp.required = false; inp.disabled = true;
             });
@@ -52,8 +55,10 @@ function setupEventCheckboxLogic() {
             visitContainer.classList.remove("hidden");
             shareSection.classList.remove("hidden");
             eventContainer.classList.add("hidden");
-            document.getElementById("form-address").required = true;
-            document.getElementById("form-reference").required = true;
+            document.querySelectorAll(".property-address-input, .property-reference-input").forEach(inp => {
+                inp.required = true;
+                inp.disabled = false;
+            });
             document.querySelectorAll(".client-name-input").forEach(inp => {
                 inp.required = true; inp.disabled = false;
             });
@@ -81,6 +86,17 @@ function setupClientAddButton() {
     }
 }
 
+
+
+function setupPropertyAddButton() {
+    const btnAddProperty = document.getElementById("btn-add-property");
+    if(btnAddProperty) {
+        btnAddProperty.addEventListener("click", () => {
+            const container = document.getElementById("properties-container");
+            addPropertyRow("", "", container.children.length, true);
+        });
+    }
+}
 function setupSearch() {
     const searchInput = document.getElementById("global-search");
     const dropdown = document.getElementById("search-dropdown");
@@ -221,6 +237,89 @@ function setupGlobalViewFunctions() {
     };
 }
 
+
+
+export function addPropertyRow(referenceVal, addressVal, index, rowEditable) {
+    const container = document.getElementById("properties-container");
+    const row = document.createElement("div");
+    row.className = "property-item-row";
+
+    row.style.display = "flex";
+    row.style.gap = "10px";
+    row.style.alignItems = "flex-start";
+    row.style.marginBottom = "10px";
+
+    const divRef = document.createElement("div");
+    divRef.style.flex = "0 0 110px";
+
+    const labelRef = document.createElement("label");
+    labelRef.textContent = "Ref.";
+    labelRef.style.display = "block";
+    labelRef.style.fontSize = "0.85rem";
+    labelRef.style.fontWeight = "600";
+    labelRef.style.marginBottom = "4px";
+
+    const inputRef = document.createElement("input");
+    inputRef.type = "text";
+    inputRef.className = "form-control property-reference-input";
+    inputRef.value = referenceVal || "";
+    inputRef.disabled = !rowEditable;
+    inputRef.required = true;
+    inputRef.setAttribute("inputmode", "numeric");
+    inputRef.addEventListener("input", (e) => {
+        e.target.value = e.target.value.replace(/[^0-9]/g, "");
+    });
+
+    divRef.appendChild(labelRef);
+    divRef.appendChild(inputRef);
+
+    const divAddress = document.createElement("div");
+    divAddress.style.flex = "1";
+
+    const labelAddress = document.createElement("label");
+    labelAddress.textContent = "Imóvel / Endereço / Obs.";
+    labelAddress.style.display = "block";
+    labelAddress.style.fontSize = "0.85rem";
+    labelAddress.style.fontWeight = "600";
+    labelAddress.style.marginBottom = "4px";
+
+    const inputAddress = document.createElement("input");
+    inputAddress.type = "text";
+    inputAddress.className = "form-control property-address-input";
+    inputAddress.value = addressVal || "";
+    inputAddress.disabled = !rowEditable;
+    inputAddress.required = true;
+
+    divAddress.appendChild(labelAddress);
+    divAddress.appendChild(inputAddress);
+
+    row.appendChild(divRef);
+    row.appendChild(divAddress);
+
+    if (rowEditable) {
+        const btnContainer = document.createElement("div");
+        btnContainer.style.display = "flex";
+        btnContainer.style.alignItems = "center";
+        btnContainer.style.justifyContent = "center";
+        btnContainer.style.paddingTop = "24px";
+
+        const btnRem = document.createElement("button");
+        btnRem.type = "button";
+        btnRem.className = "remove-property-btn";
+        btnRem.innerHTML = "<i class='fas fa-trash'></i>";
+        btnRem.style.border = "none";
+        btnRem.style.background = "transparent";
+        btnRem.style.color = "#ef4444";
+        btnRem.style.cursor = "pointer";
+        btnRem.style.fontSize = "1rem";
+        btnRem.onclick = () => { row.remove(); };
+
+        btnContainer.appendChild(btnRem);
+        row.appendChild(btnContainer);
+    }
+
+    container.appendChild(row);
+}
 // --- FUNÇÃO AJUSTADA PARA FLEXBOX E DADOS DE CADASTRO ---
 export function addClientRow(nameVal, phoneVal, addedByVal, index, rowEditable, addedByNameVal = "", addedAtVal = "") {
     const container = document.getElementById("clients-container");
