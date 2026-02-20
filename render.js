@@ -1,5 +1,5 @@
 import { BROKERS, BROKER_COLORS, TIME_START, TIME_END, state } from "./config.js";
-import { isoDate, getRow, getStartOfWeek, getClientList, checkTimeOverlap } from "./utils.js";
+import { isoDate, getRow, getStartOfWeek, getClientList, getPropertyList, checkTimeOverlap } from "./utils.js";
 
 // --- CONFIGURAÇÃO DE TEMAS ESPECÍFICOS POR NOME ---
 // --- CONFIGURAÇÃO DE TEMAS ESPECÍFICOS POR NOME ---
@@ -368,13 +368,20 @@ function placeCard(grid, appt, col, rowStart, span, styleConfig = {}) {
       // Linha 1: Consultora + Ícone (se aplicável)
       html += `<div style="${textStyle}"><strong>Cons:</strong> ${iconHtml}${appt.createdByName}</div>`;
       
+      const propertyList = getPropertyList(appt);
+      const firstProperty = propertyList[0] || { reference: appt.reference || "", address: appt.propertyAddress || "" };
+
       // Linha 2: Referência
-      if (appt.reference) {
-         html += `<div style="${textStyle}"><strong>Ref:</strong> ${appt.reference}</div>`;
+      if (firstProperty.reference) {
+         html += `<div style="${textStyle}"><strong>Ref:</strong> ${firstProperty.reference}</div>`;
       }
       
       // Linha 3: Endereço
-      html += `<div style="${textStyle}" title="${appt.propertyAddress}"><strong>End:</strong> ${appt.propertyAddress}</div>`;
+      html += `<div style="${textStyle}" title="${firstProperty.address || ""}"><strong>End:</strong> ${firstProperty.address || ""}</div>`;
+
+      if (propertyList.length > 1) {
+          html += `<div style="${textStyle}; color:#555;">+ ${propertyList.length - 1} imóvel(is)</div>`;
+      }
 
       // Linha 4+: Clientes
       const clientList = getClientList(appt);

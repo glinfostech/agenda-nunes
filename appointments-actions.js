@@ -77,6 +77,7 @@ export async function saveAppointmentAction(formData) {
         eventComment: formData.eventComment || "",
         reference: formData.reference || "",
         propertyAddress: formData.propertyAddress || "",
+        properties: formData.properties || [],
         clients: formData.clients || [], // Array de objetos { name, phone, addedBy... }
         sharedWith: formData.sharedWith || [],
         
@@ -91,13 +92,13 @@ export async function saveAppointmentAction(formData) {
         appointmentData.createdAt = new Date().toISOString();
         // Verifica conflitos para novos
         if (!formData.isEvent) {
-            const conflict = checkOverlap(appointmentData, null, state.appointments);
+            const conflict = checkOverlap(appointmentData.brokerId, appointmentData.date, appointmentData.startTime, appointmentData.endTime, null, appointmentData.isEvent);
             if (conflict) throw new Error(conflict);
         }
     } else {
         // Verifica conflitos na edição
         if (!formData.isEvent) {
-            const conflict = checkOverlap(appointmentData, id, state.appointments);
+            const conflict = checkOverlap(appointmentData.brokerId, appointmentData.date, appointmentData.startTime, appointmentData.endTime, id, appointmentData.isEvent);
             if (conflict) throw new Error(conflict);
         }
     }
@@ -164,7 +165,8 @@ export async function saveAppointmentAction(formData) {
             if (!appointmentData.isEvent) {
                 // Se mudou corretor ou horário, notificar?
                 // A lógica simples é: notificar o corretor do agendamento atual
-                await handleBrokerNotification(appointmentData, isNew ? "new" : "update");
+                const brokerName = BROKERS.find((b) => b.id === appointmentData.brokerId)?.name || "Desconhecido";
+                await handleBrokerNotification(appointmentData.brokerId, brokerName, isNew ? "create" : "update", appointmentData);
             }
             
             return { message: isNew ? "Agendamento criado com sucesso!" : "Agendamento atualizado com sucesso!" };
@@ -178,16 +180,21 @@ export async function saveAppointmentAction(formData) {
 export async function deleteAppointmentAction(appt) {
     if (!appt || !appt.id) return;
     
-    // Regra: Não deletar se bloqueado (salvo Super Admin)
+    // Regra: Não deletar se bloqueado (salvo Super Admin ou criação recente do próprio usuário)
     const isSuperAdmin = (state.userProfile.email === "gl.infostech@gmail.com");
-    if (isTimeLocked(appt.date, appt.startTime) && !isSuperAdmin) {
+    const createdByMe = appt.createdBy === state.userProfile.email;
+    const createdAtMs = appt.createdAt ? new Date(appt.createdAt).getTime() : NaN;
+    const justCreatedByMe = createdByMe && !Number.isNaN(createdAtMs) && ((Date.now() - createdAtMs) <= (15 * 60 * 1000));
+
+    if (isTimeLocked(appt.date, appt.startTime) && !isSuperAdmin && !justCreatedByMe) {
         throw new Error("Não é possível excluir visitas antigas/bloqueadas.");
     }
 
     try {
         await deleteDoc(doc(db, "appointments", appt.id));
         if (!appt.isEvent) {
-            await handleBrokerNotification(appt, "delete");
+            const brokerName = BROKERS.find((b) => b.id === appt.brokerId)?.name || "Desconhecido";
+            await handleBrokerNotification(appt.brokerId, brokerName, "delete", appt);
         }
         return { message: "Agendamento excluído." };
     } catch (e) {
@@ -226,6 +233,7 @@ function detectChanges(oldAppt, newData) {
         startTime: "Início",
         endTime: "Fim",
         propertyAddress: "Endereço",
+        properties: "Imóveis",
         status: "Status",
         statusObservation: "Obs. Status",
         createdBy: "Responsável"

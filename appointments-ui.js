@@ -1,8 +1,8 @@
 //appointments-ui.js: Só cuida da aparência. Abre o modal, preenche os campos, esconde/mostra botões e controla as abas (Evento vs Visita).
 
 import { state, BROKERS } from "./config.js";
-import { addClientRow } from "./interactions.js";
-import { getClientList } from "./utils.js";
+import { addClientRow, addPropertyRow } from "./interactions.js";
+import { getClientList, getPropertyList } from "./utils.js";
 import { 
     isTimeLocked, 
     getLockMessage, 
@@ -33,6 +33,19 @@ export function getFormDataFromUI() {
                 addedByName: addedByNameInput ? addedByNameInput.value : "", 
                 addedAt: addedAtInput ? addedAtInput.value : ""
             });
+        }
+    });
+
+    // Coleta Imóveis
+    let propertiesData = [];
+    const propertyRows = document.querySelectorAll(".property-item-row");
+    propertyRows.forEach(row => {
+        const referenceInput = row.querySelector(".property-reference-input");
+        const addressInput = row.querySelector(".property-address-input");
+        const reference = referenceInput ? referenceInput.value.trim() : "";
+        const address = addressInput ? addressInput.value.trim() : "";
+        if (reference || address) {
+            propertiesData.push({ reference, address });
         }
     });
 
@@ -67,8 +80,9 @@ export function getFormDataFromUI() {
         // ------------------------------
 
         eventComment: document.getElementById("form-event-comment").value,
-        reference: document.getElementById("form-reference").value,
-        propertyAddress: document.getElementById("form-address").value,
+        reference: propertiesData[0]?.reference || "",
+        propertyAddress: propertiesData[0]?.address || "",
+        properties: propertiesData,
         clients: clientsData,
         sharedWith: sharedWith,
         recurrence: {
@@ -102,8 +116,8 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     const inpDate = document.getElementById("form-date");
     const dateStatic = document.getElementById("date-static-display");
     const btnChangeDate = document.getElementById("btn-change-date");
-    const inpRef = document.getElementById("form-reference");
-    const inpAddress = document.getElementById("form-address");
+    const propertiesContainer = document.getElementById("properties-container");
+    let btnAddProperty = document.getElementById("btn-add-property");
     const inpEventComment = document.getElementById("form-event-comment");
     const inpStart = document.getElementById("form-start");
     const inpEnd = document.getElementById("form-end");
@@ -114,13 +128,6 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     const lblStatusObs = document.getElementById("lbl-status-obs");
     const inpStatusObs = document.getElementById("form-status-obs");
 
-    if (inpRef) {
-        inpRef.oninput = function() {
-            this.value = this.value.replace(/[^0-9]/g, "");
-        };
-        inpRef.setAttribute("inputmode", "numeric");
-    }
-  
     if(btnSave) btnSave.disabled = false;
     modal.classList.add("open");
     document.getElementById("appt-id").value = appt ? appt.id : "";
@@ -213,8 +220,6 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
         inpDate.disabled = disableCore;
         inpStart.disabled = disableCore;
         inpEnd.disabled = disableCore;
-        inpRef.disabled = disableCore;
-        inpAddress.disabled = disableCore;
         inpEventComment.disabled = disableCore;
         chkIsEvent.disabled = disableCore;
 
@@ -247,21 +252,23 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
         }
 
         if (isEvt) {
-            inpRef.parentElement.classList.add("hidden");
-            inpAddress.parentElement.classList.add("hidden");
+            if(propertiesContainer) propertiesContainer.classList.add("hidden");
+            if(btnAddProperty) btnAddProperty.classList.add("hidden");
             inpEventComment.parentElement.classList.remove("hidden");
             if(clContainer) clContainer.classList.add("hidden");
             if(clientHeader) clientHeader.classList.add("hidden");
             if(btnAddClient) btnAddClient.classList.add("hidden");
+            enforcePropertyRowPermissions(false, true);
         } else {
-            inpRef.parentElement.classList.remove("hidden");
-            inpAddress.parentElement.classList.remove("hidden");
+            if(propertiesContainer) propertiesContainer.classList.remove("hidden");
+            if(btnAddProperty) btnAddProperty.classList.toggle("hidden", !canInteractGeneral);
             inpEventComment.parentElement.classList.add("hidden");
             if(clContainer) clContainer.classList.remove("hidden");
             if(clientHeader) clientHeader.classList.remove("hidden");
             // Botão Adicionar Cliente: segue regra geral de interação (bloqueado se Locked)
             if(btnAddClient) btnAddClient.classList.toggle("hidden", !canInteractGeneral);
             enforceClientRowPermissions(isLocked, isCoreEditor, chkIsEvent.checked);
+            enforcePropertyRowPermissions(canInteractGeneral, chkIsEvent.checked);
         }
     };
 
@@ -284,6 +291,16 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     btnSave.classList.toggle("hidden", !showSaveButton);
     btnDel.classList.toggle("hidden", !canDelete);
     
+    if(btnAddProperty) {
+        const newBtnProperty = btnAddProperty.cloneNode(true);
+        btnAddProperty.parentNode.replaceChild(newBtnProperty, btnAddProperty);
+        btnAddProperty = newBtnProperty;
+        btnAddProperty.onclick = (e) => {
+            e.preventDefault(); e.stopPropagation();
+            addPropertyRow("", "", 0, true);
+        };
+    }
+
     // Configura o botão de adicionar cliente
     if(btnAddClient) {
         const newBtn = btnAddClient.cloneNode(true);
@@ -304,10 +321,9 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
 
         if (isEvent) {
             inpEventComment.value = appt.eventComment || "";
-            inpRef.value = ""; inpAddress.value = "";
+            renderPropertiesInput([], false);
         } else {
-            inpRef.value = appt.reference || "";
-            inpAddress.value = appt.propertyAddress;
+            renderPropertiesInput(getPropertyList(appt), canInteractGeneral);
             // Clientes só editáveis se não bloqueado geral
             renderClientsInput(getClientList(appt), canInteractGeneral, amICreator, isAdmin, appt);
         }
@@ -329,7 +345,7 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
         }
     } else {
         // NOVO AGENDAMENTO
-        setupNewAppointmentUI(defaults, inpBroker, brokerStatic, btnChangeBroker, inpDate, dateStatic, btnChangeDate, inpRef, inpAddress, inpEventComment, inpStart, inpEnd, updateFormState);
+        setupNewAppointmentUI(defaults, inpBroker, brokerStatic, btnChangeBroker, inpDate, dateStatic, btnChangeDate, inpEventComment, inpStart, inpEnd, updateFormState);
     }
 
     // --- COMPARTILHAMENTO ---
@@ -341,7 +357,9 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     };
     
     setupClientObserver(enforceClientRowPermissions, isLocked, isCoreEditor, chkIsEvent);
+    enforcePropertyRowPermissions(canInteractGeneral, chkIsEvent.checked);
 }
+
 
 // --- FUNÇÕES AUXILIARES DE UI ---
 
@@ -448,6 +466,27 @@ function enforceClientRowPermissions(isLocked, isCoreEditor, isEvtMode) {
     });
 }
 
+
+function enforcePropertyRowPermissions(canInteractGeneral, isEvent) {
+    const rows = document.querySelectorAll(".property-item-row");
+    rows.forEach(row => {
+        const refInp = row.querySelector(".property-reference-input");
+        const addrInp = row.querySelector(".property-address-input");
+        const btnDel = row.querySelector(".remove-property-btn");
+        const canEdit = canInteractGeneral && !isEvent;
+
+        if (refInp) {
+            refInp.disabled = !canEdit;
+            refInp.required = !isEvent;
+        }
+        if (addrInp) {
+            addrInp.disabled = !canEdit;
+            addrInp.required = !isEvent;
+        }
+        if (btnDel) btnDel.style.display = canEdit ? "flex" : "none";
+    });
+}
+
 function setupClientObserver(enforceFn, isLocked, isCoreEditor, chkIsEvent) {
     const clientsContainer = document.getElementById("clients-container");
     if(clientsContainer) {
@@ -462,7 +501,7 @@ function setupClientObserver(enforceFn, isLocked, isCoreEditor, chkIsEvent) {
     }
 }
 
-function setupNewAppointmentUI(defaults, inpBroker, brokerStatic, btnChangeBroker, inpDate, dateStatic, btnChangeDate, inpRef, inpAddress, inpEventComment, inpStart, inpEnd, updateFormState) {
+function setupNewAppointmentUI(defaults, inpBroker, brokerStatic, btnChangeBroker, inpDate, dateStatic, btnChangeDate, inpEventComment, inpStart, inpEnd, updateFormState) {
     document.getElementById("modal-title").innerText = "Novo Agendamento";
     const headerInfo = document.getElementById("creation-info-header");
     if(headerInfo) headerInfo.innerHTML = "";
@@ -476,11 +515,13 @@ function setupNewAppointmentUI(defaults, inpBroker, brokerStatic, btnChangeBroke
     dateStatic.classList.add("hidden");
     if(btnChangeDate) btnChangeDate.style.display = "none";
 
-    inpRef.value = ""; inpAddress.value = ""; inpEventComment.value = "";
+    inpEventComment.value = "";
     document.getElementById("clients-container").innerHTML = "";
+    document.getElementById("properties-container").innerHTML = "";
     const nowStr = new Date().toLocaleString("pt-BR");
     
     addClientRow("", "", state.userProfile.email, 0, true, state.userProfile.name, nowStr);
+    addPropertyRow("", "", 0, true);
 
     inpStart.value = defaults.time;
     const [h, m] = defaults.time.split(":").map(Number);
@@ -600,6 +641,18 @@ function setupShareSection(shareCheckboxes, shareSection, isCoreEditor, isLocked
         }
     } else {
         shareSection.classList.add("hidden");
+    }
+}
+
+export function renderPropertiesInput(properties, formEditable) {
+    const propertiesContainer = document.getElementById("properties-container");
+    propertiesContainer.innerHTML = "";
+    if (!properties || properties.length === 0) {
+        addPropertyRow("", "", 0, formEditable);
+    } else {
+        properties.forEach((p, index) => {
+            addPropertyRow(p.reference || "", p.address || "", index, formEditable);
+        });
     }
 }
 

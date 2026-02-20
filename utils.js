@@ -40,6 +40,22 @@ export function getClientList(appt) {
     return [];
 }
 
+
+export function getPropertyList(appt) {
+    if (appt.properties && Array.isArray(appt.properties) && appt.properties.length > 0) {
+        return appt.properties;
+    }
+
+    if (appt.reference || appt.propertyAddress) {
+        return [{
+            reference: appt.reference || "",
+            address: appt.propertyAddress || ""
+        }];
+    }
+
+    return [];
+}
+
 // --- LÓGICA DE NEGÓCIO E CONFLITOS ---
 
 export function checkOverlap(brokerId, dateStr, startStr, endStr, excludeId = null, isNewEvent = false) {
