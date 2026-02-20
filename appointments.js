@@ -78,6 +78,6 @@ async function handleDeleteRequest(appt) {
         }
     } catch (err) {
         console.error(err);
-        await showDialog("Erro", "Falha ao excluir o agendamento.");
+        await showDialog("Erro", err?.message || "Falha ao excluir o agendamento.");
     }
 }

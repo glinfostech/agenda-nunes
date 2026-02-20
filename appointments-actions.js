@@ -179,9 +179,13 @@ export async function saveAppointmentAction(formData) {
 export async function deleteAppointmentAction(appt) {
     if (!appt || !appt.id) return;
     
-    // Regra: Não deletar se bloqueado (salvo Super Admin)
+    // Regra: Não deletar se bloqueado (salvo Super Admin ou criação recente do próprio usuário)
     const isSuperAdmin = (state.userProfile.email === "gl.infostech@gmail.com");
-    if (isTimeLocked(appt.date, appt.startTime) && !isSuperAdmin) {
+    const createdByMe = appt.createdBy === state.userProfile.email;
+    const createdAtMs = appt.createdAt ? new Date(appt.createdAt).getTime() : NaN;
+    const justCreatedByMe = createdByMe && !Number.isNaN(createdAtMs) && ((Date.now() - createdAtMs) <= (15 * 60 * 1000));
+
+    if (isTimeLocked(appt.date, appt.startTime) && !isSuperAdmin && !justCreatedByMe) {
         throw new Error("Não é possível excluir visitas antigas/bloqueadas.");
     }
 
