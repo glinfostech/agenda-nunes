@@ -1,50 +1,44 @@
 import { db, state, BROKERS } from "./config.js";
 import { collection, query, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
-// --- VARIÁVEIS GLOBAIS DO RELATÓRIO ---
-let currentReportData = []; 
-let currentPage = 1;
-const ITEMS_PER_PAGE = 50;  
+let currentReportData = [];
 
-// --- INICIALIZAÇÃO ---
+function normalizeRole(role) {
+    return String(role || "").trim().toLowerCase();
+}
+
 export function initReports() {
-    if (!state.userProfile || state.userProfile.role !== 'admin') {
-        return;
-    }
+    if (!state.userProfile || normalizeRole(state.userProfile.role) !== "admin") return;
     injectReportButton();
     injectReportModal();
 }
 
-// --- UI (INTERFACE) ---
 function injectReportButton() {
-    const navbar = document.querySelector('.navbar .brand-section'); 
-    if (navbar) {
-        if (document.querySelector('.btn-report')) return;
+    const controls = document.querySelector(".navbar .controls-section");
+    if (!controls || document.querySelector(".btn-report")) return;
 
-        const btn = document.createElement('button');
-        btn.className = 'btn-report';
-        btn.innerHTML = `<i class="fas fa-chart-line"></i> Relatórios`;
-        btn.onclick = openReportModal;
-        btn.style.marginLeft = "15px";
-        navbar.appendChild(btn);
-    }
+    const btn = document.createElement("button");
+    btn.className = "btn-report";
+    btn.type = "button";
+    btn.innerHTML = `<i class="fas fa-chart-line"></i> Relatórios`;
+    btn.onclick = openReportModal;
+
+    controls.prepend(btn);
 }
 
 function injectReportModal() {
-    if (document.getElementById('report-modal')) return;
+    if (document.getElementById("report-modal")) return;
 
     const modalHtml = `
     <div id="report-modal" class="report-modal">
         <div class="report-content">
-            
             <div class="report-header">
-                <h2><i class="fas fa-file-invoice"></i> Relatório de Visitas</h2>
+                <h2><i class="fas fa-trophy"></i> Ranking de Taxa de Conversão</h2>
                 <button class="btn-close-report" onclick="closeReportModal()"><i class="fas fa-times"></i></button>
             </div>
 
             <div class="report-filters">
                 <div class="filters-grid">
-                    
                     <div class="filter-group">
                         <label>Data Inicial</label>
                         <input type="date" id="rep-start-date" class="form-control">
@@ -59,14 +53,14 @@ function injectReportModal() {
                         <label>Corretor</label>
                         <select id="rep-broker" class="form-control">
                             <option value="">Todos</option>
-                            ${BROKERS.map(b => `<option value="${b.id}">${b.name}</option>`).join('')}
+                            ${BROKERS.map((b) => `<option value="${b.id}">${b.name}</option>`).join("")}
                         </select>
                     </div>
 
                     <div class="filter-group">
-                        <label>Consultora</label>
+                        <label>Consultor</label>
                         <select id="rep-consultant" class="form-control">
-                            <option value="">Todas</option>
+                            <option value="">Todos</option>
                         </select>
                     </div>
 
@@ -75,7 +69,6 @@ function injectReportModal() {
                             <i class="fas fa-search"></i> Gerar
                         </button>
                     </div>
-
                 </div>
             </div>
 
@@ -83,24 +76,20 @@ function injectReportModal() {
                 <div class="placeholder-msg">Selecione os filtros e clique em Gerar</div>
             </div>
         </div>
-    </div>
-    `;
+    </div>`;
 
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    document.body.insertAdjacentHTML("beforeend", modalHtml);
 
-    // --- Lógica para Fechar com ESC e Clique Fora ---
-    const modal = document.getElementById('report-modal');
-    
-    modal.addEventListener('click', (e) => {
+    const modal = document.getElementById("report-modal");
+    modal.addEventListener("click", (e) => {
         if (e.target === modal) closeReportModal();
     });
 
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('open')) closeReportModal();
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && modal.classList.contains("open")) closeReportModal();
     });
 }
 
-// Tornar funções globais
 window.openReportModal = openReportModal;
 window.closeReportModal = closeReportModal;
 window.generateReport = generateReport;
@@ -108,30 +97,31 @@ window.changeReportPage = changeReportPage;
 
 function openReportModal() {
     populateConsultants();
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-    
-    document.getElementById('rep-start-date').value = firstDay;
-    document.getElementById('rep-end-date').value = lastDay;
 
-    document.getElementById('report-modal').classList.add('open');
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
+
+    document.getElementById("rep-start-date").value = firstDay;
+    document.getElementById("rep-end-date").value = lastDay;
+    document.getElementById("report-modal").classList.add("open");
 }
 
 function closeReportModal() {
-    document.getElementById('report-modal').classList.remove('open');
+    document.getElementById("report-modal").classList.remove("open");
 }
 
 function populateConsultants() {
-    const select = document.getElementById('rep-consultant');
+    const select = document.getElementById("rep-consultant");
     if (!select) return;
+
     const currentVal = select.value;
-    select.innerHTML = '<option value="">Todas</option>';
+    select.innerHTML = '<option value="">Todos</option>';
 
     if (state.availableConsultants && state.availableConsultants.length > 0) {
-        state.availableConsultants.forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c.name; 
+        state.availableConsultants.forEach((c) => {
+            const opt = document.createElement("option");
+            opt.value = c.name;
             opt.textContent = c.name;
             select.appendChild(opt);
         });
@@ -139,231 +129,214 @@ function populateConsultants() {
     select.value = currentVal;
 }
 
-// --- LÓGICA DE GERAÇÃO ---
 async function generateReport() {
-    const startDate = document.getElementById('rep-start-date').value;
-    const endDate = document.getElementById('rep-end-date').value;
-    const brokerId = document.getElementById('rep-broker').value;
-    const consultantName = document.getElementById('rep-consultant').value;
+    const startDate = document.getElementById("rep-start-date").value;
+    const endDate = document.getElementById("rep-end-date").value;
+    const brokerId = document.getElementById("rep-broker").value;
+    const consultantName = document.getElementById("rep-consultant").value;
+    const consultantObj = state.availableConsultants.find((c) => c.name === consultantName);
+    const consultantEmail = consultantObj ? consultantObj.email : "";
 
     if (!startDate || !endDate) {
         alert("Selecione data inicial e final");
         return;
     }
 
-    const container = document.getElementById('report-results-area');
-    container.innerHTML = '<div class="loading-spinner">Carregando dados...</div>';
+    const container = document.getElementById("report-results-area");
+    container.innerHTML = '<div class="loading-spinner">Carregando ranking...</div>';
 
     try {
-        const q = query(collection(db, "appointments"));
-        const snapshot = await getDocs(q);
+        const snapshot = await getDocs(query(collection(db, "appointments")));
+        const filtered = snapshot.docs
+            .map((doc) => ({ id: doc.id, ...doc.data() }))
+            .filter((item) => {
+                if (item.isEvent) return false;
+                if (item.deletedAt) return false;
+                if (!item.date) return false;
+                if (item.date < startDate || item.date > endDate) return false;
+                if (brokerId && item.brokerId !== brokerId) return false;
+                if (consultantName) {
+                    const sharedList = Array.isArray(item.sharedWith) ? item.sharedWith : [];
+                    const isOwnerByName = item.createdByName === consultantName;
+                    const isOwnerByEmail = consultantEmail && item.createdBy === consultantEmail;
+                    const isShared = consultantEmail && sharedList.includes(consultantEmail);
+                    if (!isOwnerByName && !isOwnerByEmail && !isShared) return false;
+                }
+                return true;
+            });
 
-        const allDocs = snapshot.docs.map(d => {
-            const data = d.data();
-            
-            let clientFinal = "Sem Cliente";
-            if (data.clientName) clientFinal = data.clientName;
-            else if (data.clients && data.clients.length > 0) clientFinal = data.clients[0].name;
-
-            return {
-                id: d.id,
-                date: data.date || "", 
-                time: data.startTime || "",
-                client: clientFinal,
-                brokerId: data.brokerId || "",
-                consultant: data.createdByName || "Desconhecido",
-                reference: data.reference || "--",
-                address: data.propertyAddress || "",
-                status: data.status || "agendada", // Padrão 'agendada' se não existir
-                sharedWith: data.sharedWith || [],
-                isEvent: data.isEvent
-            };
-        });
-
-        // Filtra em Memória
-        currentReportData = allDocs.filter(item => {
-            if (item.isEvent) return false; // Ignora eventos/avisos no relatório de visitas
-            if (!item.date) return false; 
-            if (item.date < startDate || item.date > endDate) return false;
-
-            if (brokerId) {
-                const isOwner = item.brokerId === brokerId;
-                const isShared = item.sharedWith && item.sharedWith.includes(brokerId);
-                if (!isOwner && !isShared) return false;
-            }
-
-            if (consultantName) {
-                if (item.consultant !== consultantName) return false;
-            }
-
-            return true;
-        });
-
-        // Ordenar
-        currentReportData.sort((a, b) => {
-            const dateA = String(a.date || "");
-            const dateB = String(b.date || "");
-            if (dateA !== dateB) return dateA.localeCompare(dateB);
-
-            const timeA = String(a.time || "");
-            const timeB = String(b.time || "");
-            return timeA.localeCompare(timeB);
-        });
-
-        currentPage = 1;
-        renderReportTable();
-
+        currentReportData = buildRankingData(filtered);
+        renderReportTable(startDate, endDate);
     } catch (err) {
         console.error(err);
         container.innerHTML = `<div class="error-msg">Erro ao gerar: ${err.message}</div>`;
     }
 }
 
-function renderReportTable() {
-    const container = document.getElementById('report-results-area');
-    const totalVisits = currentReportData.length;
-    
-    // --- CÁLCULOS DE STATUS (NOVA LÓGICA) ---
-    // Agora baseia-se puramente no campo 'status', não na data/hora
-    let realizedCount = 0;
-    let canceledCount = 0;
-    let scheduledCount = 0;
-    
-    currentReportData.forEach(item => {
-        const st = (item.status || "agendada").toLowerCase();
-        if (st === "realizada") {
-            realizedCount++;
-        } else if (st === "cancelada") {
-            canceledCount++;
-        } else {
-            scheduledCount++;
+function buildRankingData(appointments) {
+    const groups = new Map();
+
+    appointments.forEach((item) => {
+        const brokerId = item.brokerId || "desconhecido";
+        const brokerName = BROKERS.find((b) => b.id === brokerId)?.name || item.brokerName || "Sem corretor";
+
+        if (!groups.has(brokerId)) {
+            groups.set(brokerId, {
+                corretor: brokerName,
+                visitasTotais: 0,
+                canceladas: 0,
+                realizadas: 0,
+                alugados: 0
+            });
         }
+
+        const row = groups.get(brokerId);
+        row.visitasTotais += 1;
+
+        const status = String(item.status || "agendada").toLowerCase();
+        
+        if (status === "cancelada") row.canceladas += 1;
+        
+        if (status === "realizada") {
+            row.realizadas += 1;
+            
+            // VERIFICAÇÃO CORRIGIDA AQUI: 
+            // Agora ele lê a propriedade booleana salva pelo checkbox (ex: isRented, rented, etc)
+            if (item.isRented === true || item.rented === true || item.alugado === true) {
+                row.alugados += 1;
+            }
+        }
+        
+        // Mantido apenas por segurança caso haja dados muito antigos no banco salvos dessa forma
+        if (status === "alugada" || status === "alugado") row.alugados += 1;
     });
 
-    const totalPages = Math.ceil(totalVisits / ITEMS_PER_PAGE);
-    const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
-    const endIdx = startIdx + ITEMS_PER_PAGE;
-    const pageData = currentReportData.slice(startIdx, endIdx);
+    return Array.from(groups.values())
+        .map((row) => {
+            const realizadas = Math.max(0, row.realizadas);
+            
+            // --- NOVA REGRA DE 3 APLICADA AQUI ---
+// Taxa de Conversão = Alugados / Visitas Totais (O funil completo)
+const taxaConversao = row.visitasTotais > 0 ? (row.alugados / row.visitasTotais) * 100 : 0;
 
-    // --- HTML DOS CARDS ---
+// Taxa Efetiva = Alugados / Visitas Realizadas (Eficiência da visita presencial)
+const taxaEfetiva = realizadas > 0 ? (row.alugados / realizadas) * 100 : 0;
+
+            return {
+                ...row,
+                realizadas,
+                taxaConversao,
+                taxaEfetiva
+            };
+        })
+        .sort((a, b) => b.taxaConversao - a.taxaConversao);
+}
+
+function formatPercent(value) {
+    return `${Number(value || 0).toLocaleString("pt-BR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    })}%`;
+}
+
+function getRankLabel(index) {
+    const pos = index + 1;
+    const medal = pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : "";
+    return `${pos}º${medal ? `<span class="rank-medal"> ${medal}</span>` : ""}`;
+}
+
+function formatPeriod(startDate, endDate) {
+    const [y1, m1, d1] = startDate.split("-");
+    const [y2, m2, d2] = endDate.split("-");
+    return `${d1}/${m1}/${y1} até ${d2}/${m2}/${y2}`;
+}
+
+function renderReportTable(startDate, endDate) {
+    const container = document.getElementById("report-results-area");
+    const rankingRows = currentReportData || [];
+
+    const totals = rankingRows.reduce(
+        (acc, row) => {
+            acc.corretores += 1;
+            acc.visitasTotais += row.visitasTotais;
+            acc.canceladas += row.canceladas;
+            acc.realizadas += row.realizadas || 0;
+            acc.alugados += row.alugados;
+            return acc;
+        },
+        {
+            corretores: 0,
+            visitasTotais: 0,
+            canceladas: 0,
+            realizadas: 0,
+            alugados: 0
+        }
+    );
+
+    // --- NOVA REGRA DE 3 APLICADA NO TOTAL GERAL AQUI ---
+const taxaConversaoGeral = totals.visitasTotais > 0 ? (totals.alugados / totals.visitasTotais) * 100 : 0;
+const taxaEfetivaGeral = totals.realizadas > 0 ? (totals.alugados / totals.realizadas) * 100 : 0;
+
+
     let html = `
-    <div class="stats-summary" style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
-        <div class="stat-card">
-            <span class="stat-value">${totalVisits}</span>
-            <span class="stat-label">Total</span>
-        </div>
-        <div class="stat-card">
-            <span class="stat-value" style="color:#22c55e;">${realizedCount}</span>
-            <span class="stat-label">Realizadas</span>
-        </div>
-        <div class="stat-card">
-            <span class="stat-value" style="color:#ef4444;">${canceledCount}</span>
-            <span class="stat-label">Canceladas</span>
-        </div>
-        <div class="stat-card">
-            <span class="stat-value" style="color:#3b82f6;">${scheduledCount}</span>
-            <span class="stat-label">Agendadas</span>
-        </div>
-    </div>
-
-    <div class="report-table-container">
-        <table class="report-table">
-            <thead>
-                <tr>
-                    <th style="width: 130px;">Data / Hora</th>
-                    <th style="width: 160px;">Equipe</th>
-                    <th>Imóvel / Endereço</th>
-                    <th style="width: 180px;">Cliente</th>
-                    <th style="width: 90px; text-align:center;">Status</th>
-                </tr>
-            </thead>
-            <tbody>
+    <div class="ranking-dark-wrapper">
+        <div class="ranking-title">Ranking de Taxa de Conversão <span class="ranking-subtitle">(${formatPeriod(startDate, endDate)})</span></div>
+        <div class="report-table-container ranking-table-container">
+            <table class="report-table ranking-dark-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Corretor</th>
+                        <th>Visitas Totais</th>
+                        <th>Canceladas</th>
+                        <th>Visitas Realizadas</th>
+                        <th>Alugados</th>
+                        <th class="th-right">Taxa Conversão</th>
+                        <th class="th-right">Taxa Efetiva</th>
+                    </tr>
+                </thead>
+                <tbody>
     `;
 
-    if (pageData.length === 0) {
-        html += `<tr><td colspan="5" style="text-align:center; padding: 20px;">Nenhum registro encontrado.</td></tr>`;
+    if (rankingRows.length === 0) {
+        html += '<tr><td colspan="8" class="rank-empty">Nenhuma movimentação encontrada para os filtros selecionados.</td></tr>';
     } else {
-        pageData.forEach(row => {
-            const brName = BROKERS.find(b => b.id === row.brokerId)?.name || "N/A";
-            const dateFmt = row.date.split('-').reverse().join('/');
-            
-            // Lógica do Ícone de Status Baseado no Campo
-            let statusIcon = '';
-            const st = (row.status || "agendada").toLowerCase();
-
-            if (st === 'realizada') {
-                statusIcon = '<span style="color:#22c55e; font-weight:600;"><i class="fas fa-check-circle"></i> Realizada</span>';
-            } else if (st === 'cancelada') {
-                statusIcon = '<span style="color:#ef4444; font-weight:600;"><i class="fas fa-times-circle"></i> Cancelada</span>';
-            } else {
-                statusIcon = '<span style="color:#3b82f6; font-weight:600;"><i class="far fa-clock"></i> Agendada</span>';
-            }
-
+        rankingRows.forEach((row, index) => {
             html += `
             <tr>
-                <td>
-                    <div style="font-weight:700; color:var(--text-main);">${dateFmt}</div>
-                    <div style="font-size:0.85rem; color:var(--text-muted); margin-top:2px;">
-                        <i class="far fa-clock"></i> ${row.time}
-                    </div>
-                </td>
-                
-                <td>
-                    <span class="broker-badge" style="margin-bottom:4px; display:inline-block;">${brName}</span>
-                    <div style="font-size:0.8rem; color:#64748b;">
-                        Cons: <strong>${row.consultant}</strong>
-                    </div>
-                </td>
-                
-                <td>
-                    <div style="font-weight:700; color:var(--primary); font-size:0.9rem;">
-                        Ref: ${row.reference}
-                    </div>
-                    <div style="font-size:0.8rem; color:#475569; line-height:1.3; margin-top:2px;">
-                        ${row.address || '<span style="color:#ccc">Sem endereço</span>'}
-                    </div>
-                </td>
-                
-                <td>
-                    <div style="font-weight:600; color:#334155;">${row.client}</div>
-                </td>
-
-                <td style="text-align:center; font-size:0.85rem;">
-                    ${statusIcon}
-                </td>
-            </tr>
-            `;
+                <td class="rank-col">${getRankLabel(index)}</td>
+                <td class="broker-col">${row.corretor}</td>
+                <td>${row.visitasTotais}</td>
+                <td>${row.canceladas}</td>
+                <td>${row.realizadas}</td>
+                <td>${row.alugados}</td>
+                <td class="pct-col">${formatPercent(row.taxaConversao)}</td>
+                <td class="pct-col">${formatPercent(row.taxaEfetiva)}</td>
+            </tr>`;
         });
     }
 
-    html += `</tbody></table></div>`;
-
-    if (totalVisits > 0) {
-        html += `
-        <div class="report-pagination">
-            <div class="pagination-info">
-                Página <strong>${currentPage}</strong> de <strong>${totalPages}</strong>
-            </div>
-            <div class="pagination-controls">
-                <button onclick="changeReportPage(-1)" class="btn-page" ${currentPage === 1 ? 'disabled' : ''}>
-                    <i class="fas fa-chevron-left"></i> Anterior
-                </button>
-                <button onclick="changeReportPage(1)" class="btn-page" ${currentPage === totalPages ? 'disabled' : ''}>
-                    Próximo <i class="fas fa-chevron-right"></i>
-                </button>
-            </div>
+    html += `
+                </tbody>
+                <tfoot>
+                    <tr class="total-geral-row">
+                        <td>TOTAL GERAL</td>
+                        <td>${totals.corretores} corretores</td>
+                        <td>${totals.visitasTotais}</td>
+                        <td>${totals.canceladas}</td>
+                        <td>${totals.realizadas}</td>
+                        <td>${totals.alugados}</td>
+                        <td class="pct-col">${formatPercent(taxaConversaoGeral)}</td>
+                        <td class="pct-col">${formatPercent(taxaEfetivaGeral)}</td>
+                    </tr>
+                </tfoot>
+            </table>
         </div>
-        `;
-    }
+    </div>`;
 
     container.innerHTML = html;
 }
 
-function changeReportPage(delta) {
-    const totalPages = Math.ceil(currentReportData.length / ITEMS_PER_PAGE);
-    const newPage = currentPage + delta;
-    if (newPage >= 1 && newPage <= totalPages) {
-        currentPage = newPage;
-        renderReportTable();
-    }
+function changeReportPage() {
+    /* Mantido por compatibilidade global. */
 }

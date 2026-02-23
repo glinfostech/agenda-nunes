@@ -1,192 +1,301 @@
-import { auth, db, state } from "./config.js";
-import { translateRole } from "./utils.js";
+import { db, state } from "./config.js";
+import { initAdminPanel } from "./admin-crud.js"; 
 import { 
-    signInWithEmailAndPassword, signOut, onAuthStateChanged 
-} from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
-import { 
-    getDoc, doc, query, collection, where, getDocs 
+    collection, query, where, getDocs, doc, getDoc 
 } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
-// --- LISTA DE SUPER ADMINS (TI) ---
-// Estes e-mails terão acesso TOTAL (role = admin) automaticamente
+const SESSION_KEY = "agenda_nunes_user_session";
+
+// Lista de e-mails que viram ADMIN automaticamente
 const SUPER_ADMINS = [
-    "gs.infostech@gmail.com"
+    "gl.infostech@gmail.com"
 ];
 
-/**
- * Inicializa o sistema de autenticação.
- * @param {Function} initAppCallback - Função a ser chamada quando o login for confirmado (initApp do app.js).
- */
-export function initAuth(initAppCallback) {
-    onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            handleLoginSuccess(user, initAppCallback);
-        } else {
-            handleLogout();
-        }
-    });
+// E-mails que NÃO devem aparecer na lista de Consultoras/Compartilhar
+const HIDDEN_USERS = [
+    "gl.infostech@gmail.com",
+    "admin@admin.com"
+];
 
-    setupLoginForm();
-    window.logout = () => signOut(auth);
+const AUTH_COLLECTIONS = ["usuarios", "users"];
+
+
+function normalizeEmail(email) {
+    return String(email || "").trim().toLowerCase();
 }
 
-function handleLoginSuccess(user, initAppCallback) {
-    const errEl = document.getElementById("login-error");
-    if (errEl) errEl.innerText = "";
+function isSamePassword(savedPassword, typedPassword) {
+    return String(savedPassword || "").trim() === String(typedPassword || "").trim();
+}
 
-    const updateInterface = (profile) => {
-        // --- ADICIONE ESTE BLOCO AQUI ---
-        if (profile.email === "gl.infostech@gmail.com") {
-            profile.role = "admin";
+function getUserPassword(userData) {
+    if (!userData || typeof userData !== "object") return "";
+    return userData.password ?? userData.senha ?? "";
+}
+
+async function findUserByCredentials(rawEmailInput, password) {
+    const normalizedEmail = normalizeEmail(rawEmailInput);
+    const typedEmail = String(rawEmailInput || "").trim();
+
+    const tryDocIds = [typedEmail, normalizedEmail]
+        .filter(Boolean)
+        .filter((v, i, arr) => arr.indexOf(v) === i);
+
+    const emailCandidates = [typedEmail, normalizedEmail]
+        .filter(Boolean)
+        .filter((v, i, arr) => arr.indexOf(v) === i);
+
+    for (const collectionName of AUTH_COLLECTIONS) {
+        for (const docId of tryDocIds) {
+            try {
+                const snap = await getDoc(doc(db, collectionName, docId));
+                const data = snap.exists() ? (snap.data() || {}) : null;
+                if (data && isSamePassword(getUserPassword(data), password)) {
+                    return { userDoc: snap, userData: data };
+                }
+            } catch (_) {}
         }
-        // --------------------------------
-        
-        state.userProfile = profile;
-        updateUserUI(profile);
-        if (["admin", "consultant"].includes(profile.role)) {
-            loadConsultantsList();
-        }
-
-        document.getElementById("login-screen").classList.add("hidden");
-        document.getElementById("main-navbar").classList.remove("hidden");
-        document.getElementById("app-container").classList.remove("hidden");
-
-        // Callback para iniciar o restante do app (listeners, realtime, etc)
-        if (!state.appInitialized && initAppCallback) {
-            initAppCallback();
-        }
-    };
-
-    // --- ESTRATÉGIA DE CACHE ---
-    const cacheKey = `userProfile_${user.email}`;
-    const cachedProfileJSON = localStorage.getItem(cacheKey);
-    let loadedFromCache = false;
-
-    if (cachedProfileJSON) {
-        try {
-            // Ao carregar do cache, passamos pelo updateInterface
-            // que vai aplicar a regra de SUPER_ADMIN novamente
-            updateInterface(JSON.parse(cachedProfileJSON));
-            loadedFromCache = true;
-            console.log("Carregado do cache via LocalStorage");
-        } catch (e) { console.warn("Erro cache", e); }
     }
 
-    getDoc(doc(db, "users", user.email)).then((snap) => {
-        if (snap.exists()) {
-            const freshProfile = { email: user.email, ...snap.data() };
-            
-            // Salva no cache
-            localStorage.setItem(cacheKey, JSON.stringify(freshProfile));
-            
-            // Atualiza a interface se não tiver carregado do cache ou se mudou algo
-            if (!loadedFromCache || JSON.stringify(freshProfile) !== cachedProfileJSON) {
-                updateInterface(freshProfile);
-            }
-        } else {
-            // Se o usuário não existe no banco, mas é Super Admin, criamos um perfil temporário
-            if (SUPER_ADMINS.includes(user.email)) {
-                const tempAdmin = { 
-                    email: user.email, 
-                    name: "TI Admin", 
-                    role: "admin" 
-                };
-                updateInterface(tempAdmin);
-            } else if (!loadedFromCache) {
-                alert("Usuário sem perfil cadastrado.");
-                signOut(auth);
-            }
+    for (const collectionName of AUTH_COLLECTIONS) {
+        for (const candidate of emailCandidates) {
+            try {
+                const q = query(collection(db, collectionName), where("email", "==", candidate));
+                const snap = await getDocs(q);
+                if (snap.empty) continue;
+
+                const found = snap.docs.find((d) => {
+                    const data = d.data() || {};
+                    return isSamePassword(getUserPassword(data), password);
+                });
+
+                if (found) return { userDoc: found, userData: found.data() || {} };
+            } catch (_) {}
         }
-    }).catch(console.error);
+    }
+
+    for (const collectionName of AUTH_COLLECTIONS) {
+        try {
+            const q = query(collection(db, collectionName), where("emailNormalizado", "==", normalizedEmail));
+            const snap = await getDocs(q);
+            if (snap.empty) continue;
+
+            const found = snap.docs.find((d) => {
+                const data = d.data() || {};
+                return isSamePassword(getUserPassword(data), password);
+            });
+
+            if (found) return { userDoc: found, userData: found.data() || {} };
+        } catch (_) {}
+    }
+
+    for (const collectionName of AUTH_COLLECTIONS) {
+        try {
+            const snap = await getDocs(collection(db, collectionName));
+            if (snap.empty) continue;
+
+            const found = snap.docs.find((d) => {
+                const data = d.data() || {};
+                const docEmail = normalizeEmail(data.email || d.id);
+                const emailNormField = normalizeEmail(data.emailNormalizado);
+                const sameEmail = docEmail === normalizedEmail || emailNormField === normalizedEmail;
+                return sameEmail && isSamePassword(getUserPassword(data), password);
+            });
+
+            if (found) return { userDoc: found, userData: found.data() || {} };
+        } catch (_) {}
+    }
+
+    return null;
+}
+
+function normalizeRole(role) {
+    return String(role || "").trim().toLowerCase();
+}
+
+function isAdminRole(role) {
+    return normalizeRole(role) === "admin";
+}
+
+export function initAuth(initAppCallback) {
+    setupLoginForm(initAppCallback);
+    
+    const savedSession = localStorage.getItem(SESSION_KEY);
+
+    if (savedSession) {
+        try {
+            const userProfile = JSON.parse(savedSession);
+            handleLoginSuccess(userProfile, initAppCallback);
+        } catch (e) {
+            console.error("Sessão inválida.");
+            handleLogout();
+        }
+    } else {
+        handleLogout();
+    }
+
+    window.logout = () => {
+        handleLogout();
+    };
+}
+
+function setupLoginForm(initAppCallback) {
+    const form = document.getElementById("login-form");
+    if(!form) return;
+
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+
+    newForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        
+        const errorElement = document.getElementById("login-error");
+        const emailInput = document.getElementById("login-email");
+        const passInput = document.getElementById("login-password");
+        const btnSubmit = newForm.querySelector("button[type='submit']");
+
+        const email = normalizeEmail(emailInput.value);
+        const password = passInput.value.trim();
+
+        if (!email || !password) {
+            errorElement.innerText = "Preencha e-mail e senha.";
+            return;
+        }
+
+        errorElement.innerText = "Verificando credenciais...";
+        if(btnSubmit) btnSubmit.disabled = true;
+        
+        try {
+            const foundUser = await findUserByCredentials(emailInput.value, password);
+
+            if (!foundUser) {
+                throw new Error("E-mail ou senha incorretos.");
+            }
+
+            const { userDoc, userData } = foundUser;
+            const profile = {
+                ...userData,
+                id: userDoc.id,
+                email: normalizeEmail(userData.email || userDoc.id)
+            };
+
+            if (SUPER_ADMINS.includes(normalizeEmail(profile.email))) {
+                profile.role = "admin";
+            }
+
+            handleLoginSuccess(profile, initAppCallback);
+
+        } catch (err) {
+            console.error("Falha login.");
+            errorElement.innerText = err.message || "Erro ao tentar entrar.";
+            passInput.value = "";
+            passInput.focus();
+        } finally {
+            if(btnSubmit) btnSubmit.disabled = false;
+        }
+    });
+}
+
+
+function showMainAppView() {
+    const navBar = document.getElementById("main-navbar");
+    const appContainer = document.getElementById("app-container");
+    const adminPanel = document.getElementById("admin-crud-screen");
+
+    if (adminPanel) adminPanel.classList.add("hidden");
+    if (navBar) navBar.classList.remove("hidden");
+    if (appContainer) appContainer.classList.remove("hidden");
+}
+
+function showAdminPanelView() {
+    const navBar = document.getElementById("main-navbar");
+    const appContainer = document.getElementById("app-container");
+    const adminPanel = document.getElementById("admin-crud-screen");
+
+    if (adminPanel) adminPanel.classList.remove("hidden");
+    if (navBar) navBar.classList.add("hidden");
+    if (appContainer) appContainer.classList.add("hidden");
+}
+
+function handleLoginSuccess(profile, initAppCallback) {
+    state.userProfile = profile;
+    localStorage.setItem(SESSION_KEY, JSON.stringify(profile));
+
+    const loginScreen = document.getElementById("login-screen");
+    if(loginScreen) loginScreen.classList.add("hidden");
+
+    showMainAppView();
+
+    if (isAdminRole(profile.role)) {
+        initAdminPanel();
+    }
+
+    updateUserUI(profile);
+
+    // Carrega consultoras (se tiver permissão)
+    if (["admin", "consultant"].includes(normalizeRole(profile.role))) {
+        loadConsultantsList();
+    }
+
+    if (!state.appInitialized && initAppCallback) {
+        initAppCallback();
+    }
 }
 
 function handleLogout() {
-    document.getElementById("login-screen").classList.remove("hidden");
-    document.getElementById("main-navbar").classList.add("hidden");
-    document.getElementById("app-container").classList.add("hidden");
-    
+    localStorage.removeItem(SESSION_KEY);
     state.userProfile = null;
     state.appInitialized = false;
     
+    const loginScreen = document.getElementById("login-screen");
+    const navBar = document.getElementById("main-navbar");
+    const appContainer = document.getElementById("app-container");
+    const adminPanel = document.getElementById("admin-crud-screen");
+
+    if(loginScreen) loginScreen.classList.remove("hidden");
+    if(navBar) navBar.classList.add("hidden");
+    if(appContainer) appContainer.classList.add("hidden");
+    if(adminPanel) adminPanel.classList.add("hidden");
+    
     const loginForm = document.getElementById("login-form");
     if (loginForm) loginForm.reset();
-
-    if (state.unsubscribeSnapshot) {
-        state.unsubscribeSnapshot();
-        state.unsubscribeSnapshot = null;
-    }
-    state.appointments = [];
+    
+    const errEl = document.getElementById("login-error");
+    if(errEl) errEl.innerText = "";
 }
 
 function updateUserUI(profile) {
     const firstName = profile.name ? profile.name.split(" ")[0] : "Usuário";
     const userDisplay = document.getElementById("user-display");
     if (userDisplay) userDisplay.innerText = firstName;
-
-    const roleDisplay = document.getElementById("role-display");
-    if (roleDisplay) roleDisplay.innerText = (typeof translateRole === 'function') ? translateRole(profile.role) : profile.role;
-
-    const avatarDisplay = document.getElementById("user-avatar-initial");
-    if (avatarDisplay && profile.name) {
-        avatarDisplay.innerText = profile.name.charAt(0).toUpperCase();
-    }
-
-    if (profile.role === "broker") {
-        state.selectedBrokerId = profile.brokerId;
-        const brokerSelect = document.getElementById("view-broker-select");
-        if (brokerSelect) brokerSelect.disabled = true;
+    
+    const adminPanelBtn = document.getElementById("btn-admin-panel"); 
+    if (adminPanelBtn) {
+        if (isAdminRole(profile.role)) {
+            adminPanelBtn.classList.remove('hidden');
+            adminPanelBtn.onclick = () => showAdminPanelView();
+            window.openAdminPanel = showAdminPanelView;
+            window.closeAdminPanel = showMainAppView;
+        } else {
+            adminPanelBtn.classList.add('hidden');
+            adminPanelBtn.onclick = null;
+        }
     }
 }
 
+// --- CORREÇÃO AQUI: FILTRAR USUÁRIOS OCULTOS ---
 async function loadConsultantsList() {
     try {
         const q = query(collection(db, "users"), where("role", "in", ["consultant", "admin"]));
         const snapshot = await getDocs(q);
         
-        // Atualizei aqui para esconder o seu email da lista de seleção, 
-        // mantendo os outros que você já tinha.
-        const ignoredEmails = [
-            "gl.infostech@gmail.com"
-        ];
-    
         state.availableConsultants = snapshot.docs
-          .map((doc) => ({ email: doc.id, name: doc.data().name || "" }))
-          .filter((c) => !ignoredEmails.includes(c.email)); 
-        
-        state.availableConsultants.sort((a, b) => a.name.localeCompare(b.name));
+          .map((doc) => ({ email: normalizeEmail(doc.data().email || doc.id), name: doc.data().name || "" }))
+          // FILTRO: Remove quem estiver na lista HIDDEN_USERS
+          .filter(u => !HIDDEN_USERS.includes(normalizeEmail(u.email)))
+          .sort((a, b) => a.name.localeCompare(b.name));
+          
     } catch (e) {
-        console.error("Erro ao listar equipe:", e);
+        // Silencioso
     }
-}
-
-function setupLoginForm() {
-    const form = document.getElementById("login-form");
-    if(!form) return;
-
-    form.addEventListener("submit", (e) => {
-        e.preventDefault();
-        
-        const errorElement = document.getElementById("login-error");
-        const emailInput = document.getElementById("login-email");
-        const passInput = document.getElementById("login-password");
-
-        errorElement.innerText = "";
-        
-        signInWithEmailAndPassword(auth, emailInput.value, passInput.value).catch((err) => {
-            console.error("Erro Login:", err.code);
-            let mensagem = "Erro ao tentar entrar.";
-            switch (err.code) {
-                case "auth/invalid-login-credentials":
-                case "auth/user-not-found":
-                case "auth/wrong-password": mensagem = "E-mail ou senha incorretos."; break;
-                case "auth/invalid-email": mensagem = "O formato do e-mail é inválido."; break;
-                case "auth/too-many-requests": mensagem = "Muitas tentativas. Aguarde."; break;
-                case "auth/network-request-failed": mensagem = "Erro de conexão."; break;
-                default: mensagem = "Erro: " + err.message;
-            }
-            errorElement.innerText = mensagem;
-            passInput.value = "";
-            passInput.focus();
-        });
-    });
 }

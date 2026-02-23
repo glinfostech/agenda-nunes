@@ -1,33 +1,71 @@
 import { state, BROKERS, TIME_START, TIME_END } from "./config.js";
-import { getClientList } from "./utils.js";
+import { getClientList, getPropertyList } from "./utils.js";
 import { renderMain, updateHeaderDate, scrollToBusinessHours } from "./render.js";
 
 export function setupUIInteractions() {
+    document.body.classList.remove("theme-dark");
     setupDropdowns();
     setupSearch();
     setupEventCheckboxLogic();
     setupClientAddButton();
-    setupPropertyAddButton();
     setupGlobalViewFunctions();
 }
 
 function setupDropdowns() {
-    const opts = BROKERS.map((b) => `<option value="${b.id}">${b.name}</option>`).join("");
-    const brokerSelectView = document.getElementById("view-broker-select");
-    const brokerSelectForm = document.getElementById("form-broker");
-    
-    if(brokerSelectView) brokerSelectView.innerHTML = opts;
-    if(brokerSelectForm) brokerSelectForm.innerHTML = opts;
+    // 1. Tenta carregar os corretores na primeira vez
+    updateBrokerDropdowns();
 
+    // 2. Monta os horários (esses não mudam, então carregamos uma vez só)
     let times = "";
     for (let h = TIME_START; h < TIME_END; h++) {
         times += `<option value="${h.toString().padStart(2, "0")}:00">${h}:00</option>`;
         times += `<option value="${h.toString().padStart(2, "0")}:30">${h}:30</option>`;
     }
     times += `<option value="${TIME_END}:00">00:00 (Fim)</option>`;
+    
+    const startSelect = document.getElementById("form-start");
+    const endSelect = document.getElementById("form-end");
+    if(startSelect) startSelect.innerHTML = times;
+    if(endSelect) endSelect.innerHTML = times;
 
-    document.getElementById("form-start").innerHTML = times;
-    document.getElementById("form-end").innerHTML = times;
+    // --- GATILHOS DE SEGURANÇA ---
+    // Se a lista de corretores chegar atrasada do Firebase, recarregamos
+    // o botão automaticamente quando o usuário passar o mouse ou tocar nele.
+    const brokerSelectView = document.getElementById("view-broker-select");
+    if (brokerSelectView) {
+        brokerSelectView.addEventListener("mouseenter", updateBrokerDropdowns);
+        brokerSelectView.addEventListener("touchstart", updateBrokerDropdowns);
+    }
+}
+
+// Nova função separada que injeta as opções nos Selects sem perder o que já estava selecionado
+export function updateBrokerDropdowns() {
+    if (!BROKERS || BROKERS.length === 0) return;
+
+    // Cria apenas as opções dos corretores reais
+    const formOpts = BROKERS.map((b) => `<option value="${b.id}">${b.name}</option>`).join("");
+    
+    // Atualiza o Select do Filtro da Tela (agora sem o "Todos os corretores")
+    const brokerSelectView = document.getElementById("view-broker-select");
+    if(brokerSelectView) {
+        let currentVal = brokerSelectView.value;
+        brokerSelectView.innerHTML = formOpts;
+        
+        // Se estava em "all" ou vazio, força a selecionar o primeiro corretor da lista
+        if (!currentVal || currentVal === "all") {
+            brokerSelectView.value = BROKERS[0].id;
+        } else {
+            brokerSelectView.value = currentVal; 
+        }
+    }
+
+    // Atualiza o Select de Corretor dentro do Formulário/Modal
+    const brokerSelectForm = document.getElementById("form-broker");
+    if(brokerSelectForm) {
+        const currentFormVal = brokerSelectForm.value;
+        brokerSelectForm.innerHTML = formOpts;
+        if(currentFormVal) brokerSelectForm.value = currentFormVal;
+    }
 }
 
 function setupEventCheckboxLogic() {
@@ -39,26 +77,42 @@ function setupEventCheckboxLogic() {
         const visitContainer = document.getElementById("visit-fields-container");
         const eventContainer = document.getElementById("event-fields-container");
         const shareSection = document.getElementById("share-section");
+        
+        // NOVO: Captura os blocos de Status
+        const statusContainer = document.getElementById("status-container");
+        const statusObs = document.getElementById("div-status-obs");
 
         if (isEvent) {
-            visitContainer.classList.add("hidden");
-            shareSection.classList.add("hidden");
-            eventContainer.classList.remove("hidden");
-            document.querySelectorAll(".property-address-input, .property-reference-input").forEach(inp => {
-                inp.required = false;
-                inp.disabled = true;
-            });
+            // Se for evento, esconde visita, compartilhamento e status
+            if (visitContainer) visitContainer.classList.add("hidden");
+            if (shareSection) shareSection.classList.add("hidden");
+            if (statusContainer) statusContainer.classList.add("hidden");
+            if (statusObs) statusObs.classList.add("hidden");
+            
+            if (eventContainer) eventContainer.classList.remove("hidden");
+            
+            document.querySelectorAll(".property-address-input, .property-reference-input").forEach(inp => { inp.required = false; });
             document.querySelectorAll(".client-name-input").forEach(inp => {
                 inp.required = false; inp.disabled = true;
             });
         } else {
-            visitContainer.classList.remove("hidden");
-            shareSection.classList.remove("hidden");
-            eventContainer.classList.add("hidden");
-            document.querySelectorAll(".property-address-input, .property-reference-input").forEach(inp => {
-                inp.required = true;
-                inp.disabled = false;
-            });
+            // Se for visita normal, mostra visita, compartilhamento e status principal
+            if (visitContainer) visitContainer.classList.remove("hidden");
+            if (shareSection) shareSection.classList.remove("hidden");
+            if (statusContainer) statusContainer.classList.remove("hidden");
+            
+            // Regra para voltar a exibir a observação caso o status não seja 'agendada'
+            const currentStatus = document.getElementById("form-status")?.value;
+            if (statusObs && currentStatus !== "agendada") {
+                statusObs.classList.remove("hidden");
+            }
+            
+            if (eventContainer) eventContainer.classList.add("hidden");
+            
+            const firstRef = document.querySelector(".property-reference-input");
+            const firstAddress = document.querySelector(".property-address-input");
+            if (firstRef) firstRef.required = true;
+            if (firstAddress) firstAddress.required = true;
             document.querySelectorAll(".client-name-input").forEach(inp => {
                 inp.required = true; inp.disabled = false;
             });
@@ -86,17 +140,6 @@ function setupClientAddButton() {
     }
 }
 
-
-
-function setupPropertyAddButton() {
-    const btnAddProperty = document.getElementById("btn-add-property");
-    if(btnAddProperty) {
-        btnAddProperty.addEventListener("click", () => {
-            const container = document.getElementById("properties-container");
-            addPropertyRow("", "", container.children.length, true);
-        });
-    }
-}
 function setupSearch() {
     const searchInput = document.getElementById("global-search");
     const dropdown = document.getElementById("search-dropdown");
@@ -125,8 +168,9 @@ function setupSearch() {
         const results = state.appointments.filter(a => {
             if (a.isEvent) return (a.eventComment && a.eventComment.toLowerCase().includes(term));
             
-            const refMatch = (a.reference && a.reference.toLowerCase().includes(term));
-            const addrMatch = (a.propertyAddress && a.propertyAddress.toLowerCase().includes(term));
+            const properties = getPropertyList(a);
+            const refMatch = properties.some(p => (p.reference && p.reference.toLowerCase().includes(term)));
+            const addrMatch = properties.some(p => (p.propertyAddress && p.propertyAddress.toLowerCase().includes(term)));
             const consultantMatch = (a.createdByName && a.createdByName.toLowerCase().includes(term));
             
             const clientList = getClientList(a);
@@ -167,8 +211,9 @@ function setupSearch() {
                     const consultantName = res.createdByName || "Consultora";
                     const consultantHtml = highlightMatch(consultantName);
 
-                    const refHtml = highlightMatch(res.reference || "Sem Ref");
-                    const addrHtml = highlightMatch(res.propertyAddress);
+                    const firstProperty = getPropertyList(res)[0] || { reference: "", propertyAddress: "" };
+                    const refHtml = highlightMatch(firstProperty.reference || "Sem Ref");
+                    const addrHtml = highlightMatch(firstProperty.propertyAddress);
 
                     div.innerHTML = `
                     <div class="result-main-line">
@@ -237,90 +282,18 @@ function setupGlobalViewFunctions() {
     };
 }
 
-
-
-export function addPropertyRow(referenceVal, addressVal, index, rowEditable) {
-    const container = document.getElementById("properties-container");
-    const row = document.createElement("div");
-    row.className = "property-item-row";
-
-    row.style.display = "flex";
-    row.style.gap = "10px";
-    row.style.alignItems = "flex-start";
-    row.style.marginBottom = "10px";
-
-    const divRef = document.createElement("div");
-    divRef.style.flex = "0 0 110px";
-
-    const labelRef = document.createElement("label");
-    labelRef.textContent = "Ref.";
-    labelRef.style.display = "block";
-    labelRef.style.fontSize = "0.85rem";
-    labelRef.style.fontWeight = "600";
-    labelRef.style.marginBottom = "4px";
-
-    const inputRef = document.createElement("input");
-    inputRef.type = "text";
-    inputRef.className = "form-control property-reference-input";
-    inputRef.value = referenceVal || "";
-    inputRef.disabled = !rowEditable;
-    inputRef.required = true;
-    inputRef.setAttribute("inputmode", "numeric");
-    inputRef.addEventListener("input", (e) => {
-        e.target.value = e.target.value.replace(/[^0-9]/g, "");
-    });
-
-    divRef.appendChild(labelRef);
-    divRef.appendChild(inputRef);
-
-    const divAddress = document.createElement("div");
-    divAddress.style.flex = "1";
-
-    const labelAddress = document.createElement("label");
-    labelAddress.textContent = "Imóvel / Endereço / Obs.";
-    labelAddress.style.display = "block";
-    labelAddress.style.fontSize = "0.85rem";
-    labelAddress.style.fontWeight = "600";
-    labelAddress.style.marginBottom = "4px";
-
-    const inputAddress = document.createElement("input");
-    inputAddress.type = "text";
-    inputAddress.className = "form-control property-address-input";
-    inputAddress.value = addressVal || "";
-    inputAddress.disabled = !rowEditable;
-    inputAddress.required = true;
-
-    divAddress.appendChild(labelAddress);
-    divAddress.appendChild(inputAddress);
-
-    row.appendChild(divRef);
-    row.appendChild(divAddress);
-
-    if (rowEditable) {
-        const btnContainer = document.createElement("div");
-        btnContainer.style.display = "flex";
-        btnContainer.style.alignItems = "center";
-        btnContainer.style.justifyContent = "center";
-        btnContainer.style.paddingTop = "24px";
-
-        const btnRem = document.createElement("button");
-        btnRem.type = "button";
-        btnRem.className = "remove-property-btn";
-        btnRem.innerHTML = "<i class='fas fa-trash'></i>";
-        btnRem.style.border = "none";
-        btnRem.style.background = "transparent";
-        btnRem.style.color = "#ef4444";
-        btnRem.style.cursor = "pointer";
-        btnRem.style.fontSize = "1rem";
-        btnRem.onclick = () => { row.remove(); };
-
-        btnContainer.appendChild(btnRem);
-        row.appendChild(btnContainer);
-    }
-
-    container.appendChild(row);
-}
 // --- FUNÇÃO AJUSTADA PARA FLEXBOX E DADOS DE CADASTRO ---
+function refreshClientRemoveButtons() {
+    const container = document.getElementById("clients-container");
+    if (!container) return;
+    const rows = Array.from(container.querySelectorAll(".client-item-row"));
+    rows.forEach((r) => {
+        const btnWrap = r.querySelector(".remove-client-btn-container");
+        if (!btnWrap) return;
+        btnWrap.style.display = rows.length > 1 ? "flex" : "none";
+    });
+}
+
 export function addClientRow(nameVal, phoneVal, addedByVal, index, rowEditable, addedByNameVal = "", addedAtVal = "") {
     const container = document.getElementById("clients-container");
     const row = document.createElement("div");
@@ -410,25 +383,137 @@ export function addClientRow(nameVal, phoneVal, addedByVal, index, rowEditable, 
     // BOTÃO REMOVER
     if (rowEditable) {
         const btnContainer = document.createElement("div");
+        btnContainer.className = "remove-client-btn-container";
         // Ajuste para alinhar verticalmente com os inputs (compensando o label)
         btnContainer.style.display = "flex";
         btnContainer.style.alignItems = "center";
         btnContainer.style.justifyContent = "center";
-        btnContainer.style.paddingTop = "24px"; 
+        btnContainer.style.paddingTop = "19px"; 
 
         const btnRem = document.createElement("button");
         btnRem.type = "button"; btnRem.className = "remove-client-btn";
         btnRem.innerHTML = "<i class='fas fa-trash'></i>";
         // Estilos para garantir que o botão fique bonito e limpo
-        btnRem.style.border = "none";
-        btnRem.style.background = "transparent";
-        btnRem.style.color = "#ef4444";
-        btnRem.style.cursor = "pointer";
-        btnRem.style.fontSize = "1rem";
+       
+        btnRem.style.height = "38px"; 
 
-        btnRem.onclick = () => { row.remove(); };
+        btnRem.onclick = () => {
+            row.remove();
+            refreshClientRemoveButtons();
+        };
         btnContainer.appendChild(btnRem);
         row.appendChild(btnContainer);
     }
     container.appendChild(row);
+    refreshClientRemoveButtons();
+}
+export function addPropertyRow(referenceVal = "", addressVal = "", index = 0, rowEditable = true) {
+    const container = document.getElementById("properties-container");
+    const row = document.createElement("div");
+    row.className = "property-item-row";
+    
+    // Configura o Flexbox da linha
+    row.style.display = "flex";
+    row.style.gap = "10px";
+    row.style.marginBottom = "10px";
+    
+    // --- CAMPO REFERÊNCIA ---
+    const divRef = document.createElement("div");
+    divRef.style.flex = "0 0 120px";
+    const labelRef = document.createElement("label");
+    labelRef.innerText = index === 0 ? "Ref." : `Ref. ${index + 1}`;
+    labelRef.style.display = "block";
+    labelRef.style.marginBottom = "4px";
+    
+    const inpRef = document.createElement("input");
+    inpRef.type = "text";
+    inpRef.className = "form-control property-reference-input";
+    inpRef.value = referenceVal || "";
+    inpRef.placeholder = "";
+    inpRef.setAttribute("inputmode", "numeric");
+    inpRef.oninput = function() {
+        this.value = this.value.replace(/[^0-9]/g, "");
+    };
+    inpRef.disabled = !rowEditable;
+    inpRef.style.width = "100%";
+    
+    divRef.appendChild(labelRef);
+    divRef.appendChild(inpRef);
+
+    // --- CAMPO ENDEREÇO ---
+    const divAddress = document.createElement("div");
+    divAddress.style.flex = "1"; // Ocupa o espaço restante
+    const labelAddress = document.createElement("label");
+    labelAddress.innerText = "Imóvel / Endereço / Obs.";
+    labelAddress.style.display = "block";
+    labelAddress.style.marginBottom = "4px";
+    
+    const inpAddress = document.createElement("input");
+    inpAddress.type = "text";
+    inpAddress.className = "form-control property-address-input";
+    inpAddress.value = addressVal || "";
+    inpAddress.disabled = !rowEditable;
+    inpAddress.style.width = "100%";
+    
+    divAddress.appendChild(labelAddress);
+    divAddress.appendChild(inpAddress);
+
+    // --- BOTÃO DE REMOVER (LIXEIRA) ---
+    const btnContainer = document.createElement("div");
+    btnContainer.className = "remove-btn-container"; // Adicionado classe para facilitar a busca
+    btnContainer.style.display = "flex";
+    btnContainer.style.alignItems = "flex-end"; 
+
+    const btnRemove = document.createElement("button");
+    btnRemove.type = "button";
+    btnRemove.className = "remove-property-btn";
+    btnRemove.innerHTML = '<i class="fas fa-trash"></i>';
+    btnRemove.title = "Remover imóvel";
+    btnRemove.disabled = !rowEditable;
+    btnRemove.style.height = "38px"; 
+
+    btnRemove.onclick = () => {
+        row.remove(); // Remove a linha atual
+        
+        // Pega todas as linhas que sobraram
+        const rows = Array.from(container.querySelectorAll('.property-item-row'));
+        
+        rows.forEach((r, idx) => {
+            // Re-enumera as labels (Ref. 1, Ref. 2, etc)
+            const refLabel = r.querySelector('label');
+            if (refLabel) refLabel.innerText = idx === 0 ? 'Ref.' : `Ref. ${idx + 1}`;
+            
+            // ATUALIZA O LIXO DAS LINHAS RESTANTES
+            const rBtnContainer = r.querySelector('.remove-btn-container');
+            if (rBtnContainer) {
+                 // Se sobrou só 1 linha, esconde o lixo dela. Se sobrou mais de 1, garante que apareça.
+                 rBtnContainer.style.display = rows.length === 1 ? "none" : "flex";
+            }
+        });
+        
+        // Retorna o botão de "+ Imóvel" caso a quantidade caia para baixo de 4
+        const btnAddProperty = document.getElementById("btn-add-property");
+        if (btnAddProperty && rows.length < 4) {
+            btnAddProperty.style.display = ""; 
+        }
+    };
+
+    btnContainer.appendChild(btnRemove);
+
+    // Monta a linha e adiciona ao container
+    row.appendChild(divRef);
+    row.appendChild(divAddress);
+    row.appendChild(btnContainer);
+    container.appendChild(row);
+
+    // --- ATUALIZAÇÃO IMEDIATA DO LIXO APÓS ADICIONAR ---
+    // Sempre que uma linha nova entra, precisamos checar o total para saber se mostramos ou não os lixos
+    const allRows = container.querySelectorAll('.property-item-row');
+    allRows.forEach((r) => {
+        const rBtnContainer = r.querySelector('.remove-btn-container');
+        if (rBtnContainer) {
+            // Se no total tem só 1 linha, o lixo fica oculto. Se tiver 2 ou mais, o lixo de TODAS fica visível.
+            rBtnContainer.style.display = allRows.length === 1 ? "none" : "flex";
+        }
+    });
 }

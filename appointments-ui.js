@@ -36,19 +36,6 @@ export function getFormDataFromUI() {
         }
     });
 
-    // Coleta Imóveis
-    let propertiesData = [];
-    const propertyRows = document.querySelectorAll(".property-item-row");
-    propertyRows.forEach(row => {
-        const referenceInput = row.querySelector(".property-reference-input");
-        const addressInput = row.querySelector(".property-address-input");
-        const reference = referenceInput ? referenceInput.value.trim() : "";
-        const address = addressInput ? addressInput.value.trim() : "";
-        if (reference || address) {
-            propertiesData.push({ reference, address });
-        }
-    });
-
     // Coleta Checkboxes de Compartilhamento
     let sharedWith = [];
     const checkboxes = document.querySelectorAll("#share-checkboxes input[type='checkbox']");
@@ -65,6 +52,7 @@ export function getFormDataFromUI() {
     // Elementos de Status (Novos)
     const statusEl = document.getElementById("form-status");
     const statusObsEl = document.getElementById("form-status-obs");
+    const statusRentedEl = document.getElementById("form-status-rented"); // NOVO: Captura o checkbox
 
     return {
         id,
@@ -77,19 +65,21 @@ export function getFormDataFromUI() {
         // --- NOVOS CAMPOS DE STATUS ---
         status: statusEl ? statusEl.value : "agendada",
         statusObservation: statusObsEl ? statusObsEl.value : "",
+        isRented: statusRentedEl ? statusRentedEl.checked : false, // NOVO: Retorna o valor do checkbox
         // ------------------------------
 
         eventComment: document.getElementById("form-event-comment").value,
-        reference: propertiesData[0]?.reference || "",
-        propertyAddress: propertiesData[0]?.address || "",
-        properties: propertiesData,
+        properties: getPropertiesFromUI(),
+        reference: getFirstPropertyField("reference"),
+        propertyAddress: getFirstPropertyField("propertyAddress"),
         clients: clientsData,
         sharedWith: sharedWith,
         recurrence: {
             endDate: recurrenceEnd,
             days: recurrenceDays
         },
-        adminSelectedOwner
+        adminSelectedOwner,
+        linkedConsultantEmail: ""
     };
 }
 
@@ -105,19 +95,15 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     
     const divEventType = document.getElementById("div-event-type");
     const inpBroker = document.getElementById("form-broker");
-    const brokerStatic = document.getElementById("broker-static-name");
-    const btnChangeBroker = document.getElementById("btn-change-broker");
     
     const whatsContainer = document.getElementById("whatsapp-buttons-container");
     const shareCheckboxes = document.getElementById("share-checkboxes");
     const shareSection = document.getElementById("share-section");
     let btnAddClient = document.getElementById("btn-add-client"); 
-
-    const inpDate = document.getElementById("form-date");
-    const dateStatic = document.getElementById("date-static-display");
-    const btnChangeDate = document.getElementById("btn-change-date");
-    const propertiesContainer = document.getElementById("properties-container");
     let btnAddProperty = document.getElementById("btn-add-property");
+
+    const propertiesContainer = document.getElementById("properties-container");
+    const inpDate = document.getElementById("form-date");
     const inpEventComment = document.getElementById("form-event-comment");
     const inpStart = document.getElementById("form-start");
     const inpEnd = document.getElementById("form-end");
@@ -127,6 +113,9 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     const divStatusObs = document.getElementById("div-status-obs");
     const lblStatusObs = document.getElementById("lbl-status-obs");
     const inpStatusObs = document.getElementById("form-status-obs");
+    
+    const divStatusRented = document.getElementById("div-status-rented"); // NOVO
+    const inpStatusRented = document.getElementById("form-status-rented"); // NOVO
 
     if(btnSave) btnSave.disabled = false;
     modal.classList.add("open");
@@ -136,8 +125,8 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     setupCustomLayout(inpBroker, divEventType);
 
     // --- PREENCHIMENTO CAMPOS ---
-    populateBrokerField(inpBroker, brokerStatic, btnChangeBroker, appt, defaults);
-    populateDateField(inpDate, dateStatic, btnChangeDate, appt, defaults);
+    populateBrokerField(inpBroker, null, null, appt, defaults);
+    populateDateField(inpDate, null, null, appt, defaults);
 
     whatsContainer.innerHTML = ""; 
     lockWarning.style.display = "none";
@@ -147,9 +136,21 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
         const currentStatus = (appt && appt.status) ? appt.status : "agendada";
         inpStatus.value = currentStatus;
         if(inpStatusObs) inpStatusObs.value = (appt && appt.statusObservation) ? appt.statusObservation : "";
+        if(inpStatusRented) inpStatusRented.checked = (appt && appt.isRented) ? true : false; // NOVO: Puxa do banco se estava marcado
 
         const updateStatusUI = () => {
             const val = inpStatus.value;
+            
+            // NOVO: Regra para mostrar/esconder a div do checkbox "Imóvel Alugado"
+            if (divStatusRented) {
+                if (val === "realizado" || val === "realizada") {
+                    divStatusRented.classList.remove("hidden");
+                } else {
+                    divStatusRented.classList.add("hidden");
+                    if (inpStatusRented) inpStatusRented.checked = false; // Desmarca ao esconder
+                }
+            }
+
             if (val === "agendada") {
                 if(divStatusObs) divStatusObs.classList.add("hidden");
             } else {
@@ -157,7 +158,7 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
                 if (val === "cancelada") {
                     if(lblStatusObs) lblStatusObs.innerText = "Motivo do Cancelamento / Problema";
                     if(inpStatusObs) inpStatusObs.placeholder = "Descreva o motivo do cancelamento...";
-                } else {
+                } else { // REMOVIDA A OPÇÃO "alugada" DAQUI
                     if(lblStatusObs) lblStatusObs.innerText = "Interesse do Cliente / Feedback";
                     if(inpStatusObs) inpStatusObs.placeholder = "O cliente gostou? Fez proposta? (Opcional)";
                 }
@@ -202,6 +203,10 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     const showSaveButton = canInteractGeneral || (isLocked && (amICreator || isAdmin));
     
     // 4. Pode deletar?
+    const createdAtMs = appt?.createdAt ? new Date(appt.createdAt).getTime() : 0;
+    const withinGraceWindow = Boolean(createdAtMs) && (Date.now() - createdAtMs <= 15 * 60 * 1000);
+    
+    // Se estiver bloqueado (isLocked), NINGUÉM pode deletar. O botão vai sumir.
     const canDelete = isCoreEditor && !isLocked;
 
     const isEvent = appt ? appt.isEvent : false;
@@ -220,55 +225,34 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
         inpDate.disabled = disableCore;
         inpStart.disabled = disableCore;
         inpEnd.disabled = disableCore;
+        togglePropertiesDisabled(disableCore || isEvt, disableCore);
         inpEventComment.disabled = disableCore;
         chkIsEvent.disabled = disableCore;
 
         // --- MUDANÇA 1: Status segue permissão específica ---
         if(inpStatus) inpStatus.disabled = !canEditStatus;
         if(inpStatusObs) inpStatusObs.disabled = !canEditStatus;
+        if(inpStatusRented) inpStatusRented.disabled = !canEditStatus; // NOVO: Segue a mesma regra do status
 
         const ownerSelect = document.getElementById("form-owner-select");
         if(ownerSelect) ownerSelect.disabled = disableCore;
 
-        // --- MUDANÇA 2: Botão de Trocar Corretor ---
-        // Regra: Bloqueado para todos, exceto Criador (sempre) ou se estiver Aberta (Core Editors)
-        if(btnChangeBroker) {
-            // Se sou Criador/Admin, posso trocar SE (não bloqueado OU sou criador)
-            // Simplificando: Criador pode sempre. Outros Admins só se não bloqueado? 
-            // O prompt diz: "bloqueado para todos a nao ser para quem criou ou enquanto a visita estiver aberta"
-            const canChangeBroker = isCoreEditor && (!isLocked || amICreator);
-            
-            // Só mostra o botão se tiver permissão E o campo de input estiver escondido (modo visualização)
-            const show = (canChangeBroker && appt && inpBroker.classList.contains("hidden"));
-            
-            btnChangeBroker.style.display = show ? "inline-flex" : "none";
-            show ? btnChangeBroker.classList.remove("hidden") : btnChangeBroker.classList.add("hidden");
-        }
-
-        if(btnChangeDate) {
-            const show = (!disableCore && appt && inpDate.classList.contains("hidden"));
-            btnChangeDate.style.display = show ? "inline-flex" : "none";
-            show ? btnChangeDate.classList.remove("hidden") : btnChangeDate.classList.add("hidden");
-        }
-
         if (isEvt) {
-            if(propertiesContainer) propertiesContainer.classList.add("hidden");
-            if(btnAddProperty) btnAddProperty.classList.add("hidden");
+            propertiesContainer.classList.add("hidden");
+            if (btnAddProperty) btnAddProperty.classList.add("hidden");
             inpEventComment.parentElement.classList.remove("hidden");
             if(clContainer) clContainer.classList.add("hidden");
             if(clientHeader) clientHeader.classList.add("hidden");
             if(btnAddClient) btnAddClient.classList.add("hidden");
-            enforcePropertyRowPermissions(false, true);
         } else {
-            if(propertiesContainer) propertiesContainer.classList.remove("hidden");
-            if(btnAddProperty) btnAddProperty.classList.toggle("hidden", !canInteractGeneral);
+            propertiesContainer.classList.remove("hidden");
+            if (btnAddProperty) btnAddProperty.classList.toggle("hidden", !canInteractGeneral);
             inpEventComment.parentElement.classList.add("hidden");
             if(clContainer) clContainer.classList.remove("hidden");
             if(clientHeader) clientHeader.classList.remove("hidden");
             // Botão Adicionar Cliente: segue regra geral de interação (bloqueado se Locked)
             if(btnAddClient) btnAddClient.classList.toggle("hidden", !canInteractGeneral);
             enforceClientRowPermissions(isLocked, isCoreEditor, chkIsEvent.checked);
-            enforcePropertyRowPermissions(canInteractGeneral, chkIsEvent.checked);
         }
     };
 
@@ -291,16 +275,6 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     btnSave.classList.toggle("hidden", !showSaveButton);
     btnDel.classList.toggle("hidden", !canDelete);
     
-    if(btnAddProperty) {
-        const newBtnProperty = btnAddProperty.cloneNode(true);
-        btnAddProperty.parentNode.replaceChild(newBtnProperty, btnAddProperty);
-        btnAddProperty = newBtnProperty;
-        btnAddProperty.onclick = (e) => {
-            e.preventDefault(); e.stopPropagation();
-            addPropertyRow("", "", 0, true);
-        };
-    }
-
     // Configura o botão de adicionar cliente
     if(btnAddClient) {
         const newBtn = btnAddClient.cloneNode(true);
@@ -313,17 +287,42 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
         };
     }
 
+    if(btnAddProperty) {
+        const newBtnProperty = btnAddProperty.cloneNode(true);
+        btnAddProperty.parentNode.replaceChild(newBtnProperty, btnAddProperty);
+        btnAddProperty = newBtnProperty;
+        
+        // Garante que o botão comece visível (pode ter sido escondido num clique anterior)
+        btnAddProperty.style.display = ""; 
+        
+        btnAddProperty.onclick = (e) => {
+             e.preventDefault(); e.stopPropagation();
+             let rowsCount = document.querySelectorAll(".property-item-row").length;
+             
+             if (rowsCount < 4) {
+                 addPropertyRow("", "", rowsCount, canInteractGeneral && !chkIsEvent.checked);
+                 rowsCount++; // Atualiza a contagem após adicionar
+             }
+             
+             // Se após adicionar chegou em 4, esconde o botão
+             if (rowsCount >= 4) {
+                 btnAddProperty.style.display = "none";
+             }
+        };
+    }
+
     // --- PREENCHIMENTO DE DADOS ESPECÍFICOS ---
     if (appt) {
         document.getElementById("modal-title").innerText = isEvent ? "Evento/Aviso" : "Detalhes da Visita";
         renderHeaderInfo(headerInfo, appt, isAdmin, isSuperAdmin);
+        updateFormState();
         renderHistoryLogs(appt, isAdmin);
 
         if (isEvent) {
             inpEventComment.value = appt.eventComment || "";
             renderPropertiesInput([], false);
         } else {
-            renderPropertiesInput(getPropertyList(appt), canInteractGeneral);
+            renderPropertiesInput(getPropertyList(appt), canInteractGeneral && !isEvent);
             // Clientes só editáveis se não bloqueado geral
             renderClientsInput(getClientList(appt), canInteractGeneral, amICreator, isAdmin, appt);
         }
@@ -345,7 +344,7 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
         }
     } else {
         // NOVO AGENDAMENTO
-        setupNewAppointmentUI(defaults, inpBroker, brokerStatic, btnChangeBroker, inpDate, dateStatic, btnChangeDate, inpEventComment, inpStart, inpEnd, updateFormState);
+        setupNewAppointmentUI(defaults, inpBroker, null, null, inpDate, null, null, inpEventComment, inpStart, inpEnd, updateFormState);
     }
 
     // --- COMPARTILHAMENTO ---
@@ -357,9 +356,7 @@ export function openAppointmentModal(appt, defaults = {}, onDeleteCallback) {
     };
     
     setupClientObserver(enforceClientRowPermissions, isLocked, isCoreEditor, chkIsEvent);
-    enforcePropertyRowPermissions(canInteractGeneral, chkIsEvent.checked);
 }
-
 
 // --- FUNÇÕES AUXILIARES DE UI ---
 
@@ -399,43 +396,15 @@ function populateBrokerField(inpBroker, brokerStatic, btnChangeBroker, appt, def
     });
     const brokerId = appt ? appt.brokerId : defaults.brokerId;
     inpBroker.value = brokerId;
-    const brokerName = BROKERS.find((b) => b.id === brokerId)?.name || "Desconhecido";
-    brokerStatic.innerText = brokerName;
     
-    brokerStatic.classList.remove("hidden");
-    inpBroker.classList.add("hidden");
-    
-    if(btnChangeBroker) {
-        btnChangeBroker.classList.add("hidden");
-        btnChangeBroker.style.display = "none";
-        btnChangeBroker.onclick = () => {
-            brokerStatic.classList.add("hidden");
-            btnChangeBroker.style.display = "none";
-            btnChangeBroker.classList.add("hidden");
-            inpBroker.classList.remove("hidden");
-        };
-    }
+    inpBroker.classList.remove("hidden");
 }
 
 function populateDateField(inpDate, dateStatic, btnChangeDate, appt, defaults) {
     const targetDate = appt ? appt.date : defaults.date;
     inpDate.value = targetDate;
-    const [y, m, d] = targetDate.split("-");
-    dateStatic.innerText = `${d}/${m}/${y}`;
     
-    dateStatic.classList.remove("hidden");
-    inpDate.classList.add("hidden"); 
-    
-    if(btnChangeDate) {
-        btnChangeDate.classList.add("hidden");
-        btnChangeDate.style.display = "none";
-        btnChangeDate.onclick = () => {
-            dateStatic.classList.add("hidden");
-            btnChangeDate.style.display = "none";
-            btnChangeDate.classList.add("hidden");
-            inpDate.classList.remove("hidden");
-        };
-    }
+    inpDate.classList.remove("hidden");
 }
 
 function enforceClientRowPermissions(isLocked, isCoreEditor, isEvtMode) {
@@ -455,35 +424,14 @@ function enforceClientRowPermissions(isLocked, isCoreEditor, isEvtMode) {
         if(nameInp) nameInp.disabled = !canEditThisRow;
         if(phoneInp) phoneInp.disabled = !canEditThisRow;
 
+        const btnWrap = row.querySelector(".remove-client-btn-container");
         const btnDel = row.querySelector(".remove-client-btn");
-        if(btnDel) {
-            if (!canEditThisRow) {
-                btnDel.style.display = "none";
-            } else {
-                btnDel.style.display = (rows.length > 1) ? "flex" : "none";
-            }
+        if (btnDel) {
+            const showRemove = canEditThisRow && rows.length > 1;
+            btnDel.style.display = showRemove ? "flex" : "none";
+            if (btnWrap) btnWrap.style.display = showRemove ? "flex" : "none";
         }
-    });
-}
 
-
-function enforcePropertyRowPermissions(canInteractGeneral, isEvent) {
-    const rows = document.querySelectorAll(".property-item-row");
-    rows.forEach(row => {
-        const refInp = row.querySelector(".property-reference-input");
-        const addrInp = row.querySelector(".property-address-input");
-        const btnDel = row.querySelector(".remove-property-btn");
-        const canEdit = canInteractGeneral && !isEvent;
-
-        if (refInp) {
-            refInp.disabled = !canEdit;
-            refInp.required = !isEvent;
-        }
-        if (addrInp) {
-            addrInp.disabled = !canEdit;
-            addrInp.required = !isEvent;
-        }
-        if (btnDel) btnDel.style.display = canEdit ? "flex" : "none";
     });
 }
 
@@ -508,23 +456,18 @@ function setupNewAppointmentUI(defaults, inpBroker, brokerStatic, btnChangeBroke
     
     inpBroker.classList.remove("hidden");
     inpBroker.disabled = false;
-    brokerStatic.classList.add("hidden");
-    if(btnChangeBroker) btnChangeBroker.style.display = "none";
     
     inpDate.classList.remove("hidden");
-    dateStatic.classList.add("hidden");
-    if(btnChangeDate) btnChangeDate.style.display = "none";
 
-    inpEventComment.value = "";
+    renderPropertiesInput([], true); inpEventComment.value = "";
     document.getElementById("clients-container").innerHTML = "";
-    document.getElementById("properties-container").innerHTML = "";
     const nowStr = new Date().toLocaleString("pt-BR");
     
     addClientRow("", "", state.userProfile.email, 0, true, state.userProfile.name, nowStr);
-    addPropertyRow("", "", 0, true);
 
-    inpStart.value = defaults.time;
-    const [h, m] = defaults.time.split(":").map(Number);
+    const defaultTime = defaults.time || "08:00";
+    inpStart.value = defaultTime;
+    const [h, m] = defaultTime.split(":").map(Number);
     const endH = h + 1 >= 24 ? "24" : (h + 1).toString();
     inpEnd.value = `${endH.padStart(2,"0")}:${m.toString().padStart(2,"0")}`;
     
@@ -535,9 +478,17 @@ function setupNewAppointmentUI(defaults, inpBroker, brokerStatic, btnChangeBroke
 
     const inpStatus = document.getElementById("form-status");
     const inpStatusObs = document.getElementById("form-status-obs");
+    const inpStatusRented = document.getElementById("form-status-rented"); // NOVO: Limpa checkbox em novo agendamento
     if(inpStatus) inpStatus.value = "agendada";
     if(inpStatusObs) inpStatusObs.value = "";
-    
+    if(inpStatusRented) inpStatusRented.checked = false; // NOVO: Garante que vem desmarcado
+
+    const chkIsEvent = document.getElementById("form-is-event");
+    if (chkIsEvent) {
+        chkIsEvent.checked = Boolean(defaults.isEvent);
+        chkIsEvent.dispatchEvent(new Event('change'));
+    }
+
     updateFormState();
 }
 
@@ -644,18 +595,6 @@ function setupShareSection(shareCheckboxes, shareSection, isCoreEditor, isLocked
     }
 }
 
-export function renderPropertiesInput(properties, formEditable) {
-    const propertiesContainer = document.getElementById("properties-container");
-    propertiesContainer.innerHTML = "";
-    if (!properties || properties.length === 0) {
-        addPropertyRow("", "", 0, formEditable);
-    } else {
-        properties.forEach((p, index) => {
-            addPropertyRow(p.reference || "", p.address || "", index, formEditable);
-        });
-    }
-}
-
 export function renderClientsInput(clients, formEditable, isCreator, isAdmin, apptContext = null) {
     const clientsContainer = document.getElementById("clients-container");
     clientsContainer.innerHTML = "";
@@ -667,4 +606,42 @@ export function renderClientsInput(clients, formEditable, isCreator, isAdmin, ap
             addClientRow(c.name || "", c.phone || "", c.addedBy, index, formEditable, c.addedByName || "", c.addedAt || "");
         });
     }
+}
+
+function getPropertiesFromUI() {
+    const rows = document.querySelectorAll(".property-item-row");
+    const properties = [];
+    rows.forEach((row) => {
+        const refInput = row.querySelector(".property-reference-input");
+        const addressInput = row.querySelector(".property-address-input");
+        const reference = refInput ? refInput.value.trim() : "";
+        const propertyAddress = addressInput ? addressInput.value.trim() : "";
+        if (reference || propertyAddress) properties.push({ reference, propertyAddress });
+    });
+    return properties;
+}
+
+function getFirstPropertyField(field) {
+    const firstProperty = getPropertiesFromUI()[0] || { reference: "", propertyAddress: "" };
+    return field === "reference" ? firstProperty.reference : firstProperty.propertyAddress;
+}
+
+function renderPropertiesInput(properties, editable) {
+    const container = document.getElementById("properties-container");
+    if (!container) return;
+    container.innerHTML = "";
+
+    const propList = (properties && properties.length > 0) ? properties : [{ reference: "", propertyAddress: "" }];
+    propList.forEach((prop, idx) => {
+        addPropertyRow(prop.reference || "", prop.propertyAddress || "", idx, editable);
+    });
+}
+
+function togglePropertiesDisabled(disabled, disableRemove = false) {
+    document.querySelectorAll(".property-reference-input, .property-address-input").forEach(inp => {
+        inp.disabled = disabled;
+    });
+    document.querySelectorAll(".remove-property-btn").forEach(btn => {
+        btn.disabled = disabled || disableRemove;
+    });
 }

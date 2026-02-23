@@ -4,7 +4,6 @@ import {
     getFirestore, 
     enableIndexedDbPersistence 
 } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
-import { getAuth } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
 // --- CONFIGURAÇÃO ---
 const firebaseConfig = {
@@ -19,7 +18,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
-export const auth = getAuth(app);
+// REMOVIDO: export const auth = getAuth(app); -> Não usamos mais a auth nativa
 
 // --- ATIVAÇÃO DA PERSISTÊNCIA (CACHE) ---
 // Isso faz com que o F5 não conte como novas leituras para dados já baixados
@@ -32,18 +31,17 @@ enableIndexedDbPersistence(db)
       }
   });
 
-// --- DADOS E CONSTANTES ---
-export const BROKERS = [
-  { id: "broker_lima", name: "Lima" },
-  { id: "broker_braga", name: "Braga" },
-  { id: "broker_davi", name: "Davi" },
-  { id: "broker_carlos", name: "Carlos" },
-  { id: "broker_igor", name: "Igor" },
-  { id: "carol", name: "Carol" },
-  { id: "broker_externo", name: "Corretor Externo" },
-  { id: "broker_chaves", name: "Retirada de Chaves" },
-];
+// --- DADOS E CONSTANTES DINÂMICOS ---
+// Agora a lista de corretores começa vazia e será preenchida pelo app.js (Firebase)
+export const BROKERS = [];
 
+// Nova função que injeta os corretores do banco de dados na lista do sistema
+export function setBrokers(newBrokers) {
+    BROKERS.length = 0; // Limpa o array atual
+    newBrokers.forEach(b => BROKERS.push(b)); // Adiciona os novos do banco
+}
+
+// Cores de fallback/legado (Pode manter sem problemas)
 export const BROKER_COLORS = {
   "broker_lima": "#bae6fd",
   "broker_braga": "#fd9c9cff",
@@ -65,7 +63,7 @@ export const state = {
     userProfile: null,
     currentView: "day",
     currentDate: new Date(),
-    selectedBrokerId: BROKERS[0].id,
+    selectedBrokerId: "all", // Iniciado como "all" (ou vazio) pois os corretores virão do banco
     appInitialized: false,
     unsubscribeSnapshot: null
 };

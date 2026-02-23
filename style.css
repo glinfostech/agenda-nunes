@@ -61,21 +61,25 @@ textarea.form-control { resize: vertical; min-height: 80px; font-family: inherit
 /* ==========================================================================
    4. NAVBAR E NAVEGAÇÃO
    ========================================================================== */
-.navbar { background: white; border-bottom: 1px solid var(--border); padding: 0.75rem 1.5rem; display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; z-index: 500; box-shadow: var(--shadow); }
-.brand-section { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--primary); font-size: 1.2rem; }
+.navbar { background: white; border-bottom: 1px solid var(--border); padding: 0.75rem 1rem; display: grid; grid-template-columns: minmax(220px, 290px) minmax(280px, 1fr) minmax(260px, 360px) auto; align-items: center; gap: 12px; z-index: 500; box-shadow: var(--shadow); }
+.brand-section { display: flex; align-items: center; gap: 10px; font-weight: 700; color: var(--primary); font-size: 1.2rem; min-width: 0; overflow: hidden; }
+.brand-text-wrap { min-width: 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+.brand-title { white-space: nowrap; line-height: 1; font-size: clamp(1.45rem, 2.05vw, 1.95rem); font-weight: 800; overflow: hidden; text-overflow: ellipsis; }
+.brand-subtitle { font-size: 0.65rem; color: #818cf8; font-style: italic; font-weight: 400; line-height: 1.1; white-space: nowrap; }
 
-.controls-section { display: flex; align-items: center; gap: 15px; }
+.controls-section { display: flex; align-items: center; gap: 10px; justify-content: flex-end; flex-wrap: wrap; min-width: 0; }
+.controls-section > * { max-width: 100%; }
 
-.date-nav { display: flex; align-items: center; gap: 0.5rem; background: #f1f5f9; padding: 4px; border-radius: 8px; }
+.date-nav { display: flex; align-items: center; gap: 0.5rem; background: #f1f5f9; padding: 4px; border-radius: 8px; min-width: 0; justify-content: space-between; }
 .nav-btn { background: white; border: 1px solid var(--border); border-radius: 6px; width: 32px; height: 32px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
-#current-date-label { min-width: 200px; text-align: center; font-size: 0.9rem; font-weight: 600; text-transform: capitalize; }
+#current-date-label { min-width: 0; text-align: center; font-size: 0.9rem; font-weight: 600; text-transform: capitalize; padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #date-static-display { font-family: system-ui, -apple-system, sans-serif; }
 
-.view-switcher { display: flex; background: #f1f5f9; padding: 3px; border-radius: 6px; }
+.view-switcher { display: flex; background: #f1f5f9; padding: 3px; border-radius: 6px; flex-shrink: 0; }
 .view-btn { border: none; background: transparent; padding: 5px 12px; border-radius: 4px; font-size: 0.85rem; color: var(--text-muted); cursor: pointer; }
 .view-btn.active { background: white; color: var(--primary); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
-.user-menu { display: flex; align-items: center; gap: 10px; border-left: 1px solid var(--border); padding-left: 15px; }
+.user-menu { display: flex; align-items: center; gap: 10px; border-left: 1px solid var(--border); padding-left: 12px; flex-shrink: 0; }
 .user-info { text-align: right; line-height: 1.2; display: none; }
 .user-avatar { width: 36px; height: 36px; background: #e0e7ff; color: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.9rem; }
 .logout-btn { color: #ef4444; background: none; border: none; font-size: 0.85rem; cursor: pointer; text-decoration: underline; }
@@ -83,7 +87,7 @@ textarea.form-control { resize: vertical; min-height: 80px; font-family: inherit
 /* ==========================================================================
    5. BUSCA (SEARCH)
    ========================================================================== */
-.search-container { position: relative; max-width: 350px; width: 100%; }
+.search-container { position: relative; width: 100%; min-width: 0; max-width: 760px; justify-self: start; }
 .search-input { width: 100%; padding: 8px 10px 8px 35px; border-radius: 20px; border: 1px solid var(--border); font-size: 0.9rem; background: #f1f5f9; transition: all 0.2s; }
 .search-input:focus { background: white; border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1); }
 .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.9rem; pointer-events: none; }
@@ -128,6 +132,39 @@ textarea.form-control { resize: vertical; min-height: 80px; font-family: inherit
 .grid-slot:hover { background: #f8fafc; }
 .month-cell { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 5px; min-height: 100px; }
 
+
+
+/* Ajustes visuais da grade (horários e nomes) */
+.header-cell, .time-cell {
+    color: var(--text-main);
+}
+
+body.theme-dark .header-cell {
+    background: #17233a;
+    color: #e5e7eb;
+    border-bottom: 1px solid #334155;
+    border-right: 1px solid #334155;
+    text-shadow: none;
+}
+
+body.theme-dark .time-cell {
+    background: #101a2f;
+    color: #cbd5e1;
+    border-right: 1px solid #334155;
+    border-bottom: 1px solid #334155;
+    font-weight: 600;
+}
+
+body.theme-dark .grid-slot {
+    border-right: 1px solid #334155;
+    border-bottom: 1px solid #334155;
+    background: #0d1a32;
+}
+
+body.theme-dark .grid-slot:hover {
+    background: #13223f;
+}
+
 /* ==========================================================================
    7. CARDS DE AGENDAMENTO (EVENTOS)
    ========================================================================== */
@@ -155,6 +192,8 @@ textarea.form-control { resize: vertical; min-height: 80px; font-family: inherit
 
 .client-item-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 12px; align-items: end; }
 .remove-client-btn { color: #ef4444; background: none; border: 1px solid #ef4444; border-radius: 6px; width: 36px; height: 36px; cursor: pointer; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; }
+.property-item-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
+.remove-property-btn { color: #ef4444; background: none; border: 1px solid #ef4444; border-radius: 6px; width: 36px; height: 36px; cursor: pointer; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; flex: 0 0 36px; }
 
 .meta-header-container { display: flex; justify-content: space-between; align-items: center; background-color: #f1f5f9; padding: 10px 14px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
 .meta-left-group { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -171,6 +210,26 @@ textarea.form-control { resize: vertical; min-height: 80px; font-family: inherit
 .week-day-check { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; background: #fff; border: 1px solid #fed7aa; padding: 4px 8px; border-radius: 4px; color: #9a3412; cursor: pointer; }
 
 .modal-footer { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--border); }
+
+
+.modal-footer .btn-secondary,
+.modal-footer .btn-secondary i {
+    color: #0f172a !important;
+}
+
+
+#btn-add-client,
+#btn-add-client i,
+#btn-add-property,
+#btn-add-property i {
+    color: #0f172a !important;
+}
+
+#btn-add-client,
+#btn-add-property {
+    background-color: #d3d3d3 !important;
+}
+
 .footer-left { display: flex; flex-wrap: wrap; gap: 8px; }
 #audit-log-container { margin-top:20px; padding:15px; background: #fef2f2; border: 1px solid #fecaca; color: #7f1d1d; border-radius:8px; max-height:200px; overflow-y:auto; font-size:0.75rem; }
 #lock-warning { background: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; padding: 10px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 10px; text-align: center; display: none; }
@@ -196,6 +255,7 @@ textarea.form-control { resize: vertical; min-height: 80px; font-family: inherit
    ========================================================================== */
 .btn-report { background-color: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
 .btn-report:hover { background-color: var(--primary-dark); }
+.controls-section .btn-report { flex-shrink: 0; white-space: nowrap; }
 
 /* Overlay e Janela */
 .report-modal {
@@ -357,3 +417,445 @@ textarea.form-control { resize: vertical; min-height: 80px; font-family: inherit
         grid-template-columns: 1fr 1fr;
     }
 }
+/* Ranking de Conversão (Tema Escuro) */
+.ranking-dark-wrapper {
+    background: #0f0f0f;
+    color: #e5e7eb;
+    border: 1px solid #2b2b2b;
+    border-radius: 10px;
+    margin: 14px;
+    overflow: hidden;
+}
+.ranking-title {
+    padding: 14px 16px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f3f4f6;
+    border-bottom: 1px solid #2b2b2b;
+    background: linear-gradient(180deg, #1a1a1a 0%, #131313 100%);
+}
+.ranking-subtitle {
+    font-size: 0.85rem;
+    color: #9ca3af;
+    font-weight: 500;
+}
+.ranking-table-container {
+    background: #0f0f0f;
+}
+.ranking-dark-table {
+    background: #121212;
+    color: #e5e7eb;
+    border-collapse: collapse;
+}
+.ranking-dark-table th {
+    background: #1b1b1b;
+    color: #d1d5db;
+    text-transform: none;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-bottom: 1px solid #2e2e2e;
+    border-right: 1px solid #242424;
+}
+.ranking-dark-table td {
+    color: #e5e7eb;
+    border-bottom: 1px solid #252525;
+    border-right: 1px solid #1f1f1f;
+    font-size: 1.05rem;
+}
+.ranking-dark-table tr:hover {
+    background-color: #181818;
+}
+.ranking-dark-table .th-right,
+.ranking-dark-table .pct-col {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+.ranking-dark-table .broker-col {
+    font-weight: 700;
+}
+.ranking-dark-table .rank-col {
+    white-space: nowrap;
+}
+.rank-medal {
+    font-size: 1.1em;
+}
+.ranking-dark-table tfoot .total-geral-row td {
+    background: #161616;
+    font-weight: 800;
+    color: #f3f4f6;
+    border-top: 1px solid #333;
+}
+.rank-empty {
+    text-align: center;
+    padding: 20px;
+    color: #9ca3af;
+}
+
+/* ==========================================================================
+   12. TEMA (CLARO/ESCURO) + RESPONSIVIDADE GLOBAL
+   ========================================================================== */
+:root {
+    --bg-elevated: #ffffff;
+    --bg-soft: #f1f5f9;
+    --text-inverse: #f8fafc;
+    --report-overlay: rgba(15, 23, 42, 0.75);
+}
+
+body.theme-dark {
+    --bg-body: #0b1220;
+    --bg-card: #111827;
+    --bg-elevated: #1f2937;
+    --bg-soft: #0f172a;
+    --text-main: #e5e7eb;
+    --text-muted: #94a3b8;
+    --border: #334155;
+    --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4);
+    --report-overlay: rgba(2, 6, 23, 0.85);
+}
+
+body.theme-dark .navbar,
+body.theme-dark .main-content,
+body.theme-dark .modal,
+body.theme-dark .report-content,
+body.theme-dark .login-card,
+body.theme-dark .search-dropdown,
+body.theme-dark .custom-dialog-box {
+    background: var(--bg-card) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+body.theme-dark .form-control,
+body.theme-dark .nav-btn,
+body.theme-dark .view-btn.active,
+body.theme-dark .date-nav,
+body.theme-dark .view-switcher,
+body.theme-dark .btn-page,
+body.theme-dark .stat-card,
+body.theme-dark .owner-select-styled {
+    background: var(--bg-elevated) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+/* Cadastro (admin): opções não selecionadas do select devem permanecer legíveis no dark */
+body.theme-dark #crud-role option {
+    background: var(--bg-elevated);
+    color: #ffffff;
+}
+
+body.theme-dark #crud-role option:checked,
+body.theme-dark #crud-role option:hover {
+    background: #e5e7eb;
+    color: #0f172a;
+}
+
+body.theme-dark .report-modal {
+    background-color: var(--report-overlay);
+}
+
+body.theme-dark .report-results,
+body.theme-dark .report-table-container,
+body.theme-dark .stats-summary,
+body.theme-dark .report-header,
+body.theme-dark .report-filters,
+body.theme-dark .report-pagination {
+    background: var(--bg-card) !important;
+    border-color: var(--border) !important;
+}
+
+body.theme-dark .report-table th,
+body.theme-dark .ranking-dark-table th {
+    background: var(--bg-elevated) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+body.theme-dark .report-table td,
+body.theme-dark .ranking-dark-table td,
+body.theme-dark .pagination-info,
+body.theme-dark .placeholder-msg,
+body.theme-dark #dialog-text {
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+.theme-toggle-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+.theme-toggle-btn i { font-size: 1rem; }
+
+/* Relatório com paleta do site */
+.ranking-dark-wrapper,
+.ranking-table-container,
+.ranking-dark-table {
+    background: var(--bg-card) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+.ranking-title,
+
+.ranking-dark-table th,
+.ranking-dark-table tfoot .total-geral-row td {
+    background: var(--bg-elevated) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+.ranking-subtitle,
+.ranking-metric-item,
+.rank-empty {
+    color: var(--text-muted) !important;
+}
+
+
+body.theme-dark #admin-crud-screen {
+    background-color: #0b1220;
+    color: var(--text-main);
+}
+body.theme-dark .admin-header,
+body.theme-dark .admin-card,
+body.theme-dark .admin-table th,
+body.theme-dark .admin-table tr:hover {
+    background: var(--bg-card) !important;
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+body.theme-dark .admin-table td,
+body.theme-dark .admin-card h3,
+body.theme-dark .form-group label {
+    color: var(--text-main) !important;
+    border-color: var(--border) !important;
+}
+
+
+@media (max-width: 1800px) {
+    .navbar { grid-template-columns: minmax(210px, 280px) minmax(260px, 1fr); align-items: stretch; }
+    .brand-section { grid-column: 1; }
+    .search-container { grid-column: 2; max-width: 620px; }
+    .date-nav { grid-column: 1; }
+    .controls-section { grid-column: 2; justify-content: flex-start; gap: 8px; flex-wrap: wrap; }
+    .user-menu { margin-left: auto; }
+    #current-date-label { min-width: 0; font-size: 0.86rem; }
+}
+
+@media (max-width: 1024px) {
+    body { overflow: auto; }
+    .navbar { padding: 10px; gap: 10px; grid-template-columns: 1fr 1fr; align-items: stretch; }
+    .brand-section { grid-column: 1 / -1; width: 100%; min-width: 0; }
+    .search-container { grid-column: 1 / -1; width: 100%; min-width: 0; max-width: 100%; }
+    .date-nav { width: 100%; justify-content: space-between; min-width: 0; }
+    .controls-section { width: 100%; justify-content: flex-end; flex-wrap: wrap; gap: 8px; min-width: 0; }
+    #current-date-label { font-size: 0.85rem; }
+    .main-content { overflow: auto; }
+    .calendar-container { min-width: max-content; }
+    .schedule-grid { min-width: 980px; }
+    .modal { width: 98%; max-height: 95vh; }
+    .checkbox-group { grid-template-columns: 1fr 1fr; }
+    .report-content { width: 98%; height: 95vh; }
+    .grid-day { min-width: 1200px; }
+    .grid-week { min-width: 1000px; }
+    .report-table-container { overflow-x: auto; }
+}
+
+@media (max-width: 680px) {
+    .navbar { grid-template-columns: 1fr; }
+    .brand-section { font-size: 1rem; width: 100%; }
+    .brand-title { font-size: 1.55rem; }
+    .date-nav { width: 100%; justify-content: space-between; }
+    .controls-section { gap: 8px; justify-content: flex-start; }
+    #view-broker-select { width: 100% !important; }
+    .controls-section .btn-report { width: 100%; justify-content: center; }
+    .view-switcher { width: 100%; min-width: 0; }
+    .view-btn { flex: 1; }
+    .theme-toggle-btn { width: 42px; height: 42px; }
+    .user-menu { border-left: none; padding-left: 0; width: 100%; justify-content: space-between; }
+    .user-info { text-align: left; }
+    .row-2-col, .row-3-col { grid-template-columns: 1fr; }
+    .visit-datetime-grid { grid-template-columns: 1fr !important; }
+    .property-item-row, .client-item-row { grid-template-columns: 1fr !important; display: grid !important; }
+    .checkbox-group { grid-template-columns: 1fr; }
+    .report-table { font-size: 0.78rem; min-width: 760px; }
+    .report-table th, .report-table td { padding: 8px; }
+    .footer-left, .modal-footer { width: 100%; }
+    .grid-day { min-width: 1150px; }
+    .grid-week { min-width: 920px; }
+    .header-cell { font-size: 0.82rem; padding: 8px 6px; }
+    .time-cell { font-size: 0.75rem; }
+}
+
+@media (max-width: 420px) {
+    .navbar { padding: 8px; }
+    .brand-section > i { font-size: 1.1rem !important; flex-shrink: 0; }
+    .brand-title { font-size: 1.25rem; }
+    .brand-subtitle { font-size: 0.58rem !important; }
+    .search-input { font-size: 0.85rem; }
+    .modal { padding: 10px; }
+    .btn { padding: 8px 10px; }
+}
+
+
+/* Ajustes solicitados: relatório light com texto preto + calendário do modal branco */
+body:not(.theme-dark) .ranking-dark-table th,
+body:not(.theme-dark) .ranking-dark-table td,
+body:not(.theme-dark) .ranking-title,
+body:not(.theme-dark) .ranking-metric-item,
+body:not(.theme-dark) .ranking-subtitle,
+body:not(.theme-dark) .rank-empty,
+body:not(.theme-dark) .ranking-dark-table .broker-col,
+body:not(.theme-dark) .ranking-dark-table .pct-col {
+    color: #0f172a !important;
+}
+
+.ranking-dark-table th,
+.ranking-dark-table td,
+.ranking-dark-table tfoot .total-geral-row td {
+    border-color: #cbd5e1 !important;
+}
+
+body:not(.theme-dark) .ranking-metric-item {
+    background: #f8fafc !important;
+    color: #0f172a !important;
+}
+
+body.theme-dark .ranking-title,
+body.theme-dark .ranking-metric-item,
+body.theme-dark .ranking-subtitle,
+body.theme-dark .rank-empty,
+body.theme-dark .ranking-dark-table th,
+body.theme-dark .ranking-dark-table td {
+    color: #e5e7eb !important;
+}
+
+/* Bloco de data/hora/status no modal de criação/edição sempre branco para leitura */
+.visit-datetime-grid #form-status,
+.visit-datetime-grid #form-date,
+.visit-datetime-grid #form-start,
+.visit-datetime-grid #form-end {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+}
+
+body.theme-dark .visit-datetime-grid #form-status,
+body.theme-dark .visit-datetime-grid #form-date,
+body.theme-dark .visit-datetime-grid #form-start,
+body.theme-dark .visit-datetime-grid #form-end {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #94a3b8 !important;
+}
+
+body.theme-dark .visit-datetime-grid > .form-group > div {
+    background: #ffffff !important;
+    border-color: #94a3b8 !important;
+}
+
+body:not(.theme-dark) .ranking-dark-table tbody tr,
+body:not(.theme-dark) .ranking-dark-table thead tr,
+body:not(.theme-dark) .ranking-dark-table tfoot tr {
+    background: #ffffff !important;
+}
+
+body.theme-dark .visit-datetime-grid select option {
+    color: #0f172a;
+    background: #ffffff;
+}
+/* ========================================================= */
+/* --- MODO LEITURA: TRAVAS DE SEGURANÇA PARA CORRETORES --- */
+/* ========================================================= */
+
+/* Oculta botões de Salvar, Excluir e Adicionar */
+body.broker-view-only #btn-save,
+body.broker-view-only #btn-delete,
+body.broker-view-only #btn-add-client,
+body.broker-view-only #btn-add-property,
+body.broker-view-only .btn-remove-client,
+body.broker-view-only .btn-remove-property {
+    display: none !important;
+}
+
+/* Bloqueia cliques em inputs, selects, textareas e labels (checkbox de evento) */
+body.broker-view-only #form-visit input,
+body.broker-view-only #form-visit select,
+body.broker-view-only #form-visit textarea,
+body.broker-view-only #form-visit label {
+    pointer-events: none !important; 
+    color: #475569 !important;
+}
+
+/* Deixa visualmente claro que os campos de texto estão inativos */
+body.broker-view-only #form-visit input[type="text"],
+body.broker-view-only #form-visit input[type="date"],
+body.broker-view-only #form-visit input[type="time"],
+body.broker-view-only #form-visit select,
+body.broker-view-only #form-visit textarea {
+    background-color: #f8fafc !important; 
+    border: 1px dashed #cbd5e1 !important;
+}
+
+
+/* Contraste por fundo: componentes claros usam texto escuro */
+.search-input {
+    color: #0f172a !important;
+}
+
+.search-input::placeholder {
+    color: #64748b !important;
+    opacity: 1;
+}
+
+/* Navbar: botões de fundo claro precisam de texto/ícone escuros */
+.navbar .btn-secondary,
+.navbar .btn-secondary i,
+.navbar #btn-admin-panel,
+.navbar #btn-admin-panel i,
+.navbar .theme-toggle-btn,
+.navbar .theme-toggle-btn i {
+    color: #0f172a !important;
+}
+
+/* Mantém boa leitura em campos claros dentro do tema escuro */
+body.theme-dark .search-input,
+body.theme-dark .search-input::placeholder {
+    color: #0f172a !important;
+}
+
+/* Campo Data do modal: fundo claro, texto/ícone escuros e calendário nativo claro */
+.visit-datetime-grid input[type="date"],
+#form-date {
+    color-scheme: light;
+    color: #0f172a !important;
+    -webkit-text-fill-color: #0f172a !important;
+    background: #ffffff !important;
+}
+
+#form-date::-webkit-datetime-edit,
+#form-date::-webkit-datetime-edit-fields-wrapper,
+#form-date::-webkit-datetime-edit-text,
+#form-date::-webkit-datetime-edit-month-field,
+#form-date::-webkit-datetime-edit-day-field,
+#form-date::-webkit-datetime-edit-year-field {
+    color: #0f172a !important;
+}
+
+#form-date::-webkit-date-and-time-value {
+    color: #0f172a !important;
+    opacity: 1;
+}
+
+#form-date::-webkit-calendar-picker-indicator {
+    opacity: 1;
+    filter: none;
+}
+
+

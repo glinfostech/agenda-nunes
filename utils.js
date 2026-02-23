@@ -40,17 +40,20 @@ export function getClientList(appt) {
     return [];
 }
 
-
 export function getPropertyList(appt) {
-    if (appt.properties && Array.isArray(appt.properties) && appt.properties.length > 0) {
-        return appt.properties;
+    if (appt && Array.isArray(appt.properties) && appt.properties.length > 0) {
+        return appt.properties
+            .map((prop) => ({
+                reference: String(prop?.reference || "").trim(),
+                propertyAddress: String(prop?.propertyAddress || "").trim()
+            }))
+            .filter((prop) => prop.reference || prop.propertyAddress);
     }
 
-    if (appt.reference || appt.propertyAddress) {
-        return [{
-            reference: appt.reference || "",
-            address: appt.propertyAddress || ""
-        }];
+    const legacyReference = String(appt?.reference || "").trim();
+    const legacyAddress = String(appt?.propertyAddress || "").trim();
+    if (legacyReference || legacyAddress) {
+        return [{ reference: legacyReference, propertyAddress: legacyAddress }];
     }
 
     return [];
